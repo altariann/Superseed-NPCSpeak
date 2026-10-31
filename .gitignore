@@ -20,3 +20,9 @@ hs_err_pid*
 # Common working directory
 run
 servers
+
+# Superseed development
+*.bak
+.gradle/
+build/
+src/main/resources/knowledge/wiki/*.txt

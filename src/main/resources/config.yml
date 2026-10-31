@@ -43,3 +43,8 @@ conversation:
   cooldown-seconds: 3
   # Seconds of silence before the conversation times out and ends automatically
   listen-timeout-seconds: 60
+  # true = one visitor at a time per NPC; false = multiple simultaneous visitors.
+  # Override for one NPC with personality.single-player in its npc YAML.
+  single-player: true
+  # Show only the speaking player their own typed message (not public chat).
+  echo-player-message: true

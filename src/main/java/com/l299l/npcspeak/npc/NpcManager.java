@@ -1,6 +1,7 @@
 package com.l299l.npcspeak.npc;
 
 import com.l299l.npcspeak.config.NpcConfigLoader;
+import com.l299l.npcspeak.knowledge.KnowledgeBase;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -57,9 +58,12 @@ public class NpcManager {
     }
 
     public void reloadAll() {
-        for (NpcData data : byId.values()) {
-            provider.despawn(data);
-        }
+        // Reload only live-adjustable configuration (e.g. single-player sessions).
+        plugin.reloadConfig();
+        NpcMessages.reload();
+        KnowledgeBase.reload();
+        // Never destroy Citizens NPCs on a configuration reload.
+        // The existing Citizens identity, skin, sitting pose, and traits must survive.
         byId.clear();
         byEntityUUID.clear();
         loadAll();

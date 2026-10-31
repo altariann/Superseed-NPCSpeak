@@ -16,6 +16,13 @@ public class CitizensNpcProvider implements NpcProvider {
             npc = registry.getById(data.getCitizensId());
         }
 
+        if (npc == null && data.getCitizensId() >= 0) {
+            // A saved Citizens ID must never be replaced silently with a fresh NPC.
+            org.bukkit.Bukkit.getLogger().warning("[NPCSpeak] Citizens NPC #" + data.getCitizensId()
+                    + " for '" + data.getId() + "' was not found. Check Citizens saves.yml; not creating a clone.");
+            return;
+        }
+
         if (npc == null) {
             npc = registry.createNPC(EntityType.PLAYER, data.getDisplayName());
             NPCSpeakTrait trait = new NPCSpeakTrait();
