@@ -40,8 +40,8 @@ public final class KnowledgeBase {
         if (!new File(owner.getDataFolder(), "knowledge.yml").exists()) owner.saveResource("knowledge.yml", false);
         File wiki = new File(owner.getDataFolder(), "knowledge/wiki");
         if (!wiki.exists()) wiki.mkdirs();
-        File sample = new File(wiki, "Aymerkez_AVM.txt");
-        if (!sample.exists()) owner.saveResource("knowledge/wiki/Aymerkez_AVM.txt", false);
+        // Wiki pages are private, external server data, not required JAR resources.
+        // A fresh source checkout must also start without a bundled wiki archive.
         reload();
     }
 
