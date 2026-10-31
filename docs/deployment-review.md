@@ -1,5 +1,10 @@
 # İlk aşama inceleme ve PR taslağı
 
+Bu belge ilk incelemenin tarihsel kaydıdır. Güncel uygulama PR #2'de sürdürülür:
+sunucu yolu parametre/takip edilmeyen JSON ile seçilir; başlangıç hataları hedef
+plugin/diğer plugin/kritik sunucu olarak ayrılır. Güncel kullanım README'dedir;
+gerçek wiki/Gemma doğrulaması `lore-validation-plan.md` içinde planlanmıştır.
+
 Önerilen PR başlığı: **Windows için güvenli NPCSpeak derleme ve dağıtım betiği**
 
 Geliştirme dalı: `dev/superseed-automation`; kaynak tabanı `dev/superseed-source`.
@@ -44,8 +49,9 @@ uzantısı ayrıca denetlenir. Bu sunucudaki eski JAR yedeğiyle doğrulanmış 
 regresyon testi eklenmiştir.
 
 JDK 26 ile Gradle `build` ve `clean build` başarılıdır. Mevcut Java kaynaklarında
-bir `ChatColor` deprecation uyarısı vardır. Gradle Java testleri `NO-SOURCE`
-durumundadır. Çevrimdışı testler onay/WhatIf kontrolünü, RCON paket biçimini,
+bir `ChatColor` deprecation uyarısı vardır. İlk aşamada Java testleri `NO-SOURCE`
+durumundaydı; sonraki lore geliştirmesinde 48 gerçek Java testi eklendi.
+Çevrimdışı testler onay/WhatIf kontrolünü, RCON paket biçimini,
 JAR kimliği/çoğaltma/eksiklik kontrollerini, hatalı derlemede sunucuya dokunmamayı,
 kapanış zaman aşımında JAR'ı korumayı, başarı sırasını, yapılandırma korumasını ve
 başlangıç hatasında geri almayı kapsar. Gerçek ağa veya Ollama'ya bağlanmaz.
