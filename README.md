@@ -7,7 +7,7 @@
 ---
 # NPCSpeak
 
-### Superseed: Windows geliştirme ve güvenli dağıtım (ilk aşama)
+### Superseed: Windows geliştirme ve güvenli dağıtım
 
 `Deploy-Superseed.ps1`, Windows PowerShell 5.1 ve üzeri için hazırlanmıştır.
 Varsayılan mod yalnızca okur; sunucuya RCON bağlantısı kurmaz, `stop` göndermez
@@ -29,8 +29,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Deployment.
 makinenin kalıcı yürütme ilkesi değiştirilmez. Projenin Gradle toolchain'i JDK 26,
 Java derleme hedefi 17'dir. `-JavaHome` Gradle JVM'ini seçer; sunucu yeniden
 başlatılırken kapanan sunucunun kullandığı Java korunur. İlk derleme Gradle ve
-Maven bağımlılıklarını indirmek için internet gerektirebilir. Java testleri
-eklenene kadar Gradle'ın `test NO-SOURCE` sonucu lore doğruluğu testi sayılmaz.
+Maven bağımlılıklarını indirmek için internet gerektirebilir. Gradle `test`
+görevi gerçek JUnit Java testlerini çalıştırır; sonuçlar
+`build/reports/tests/test/index.html` dosyasındadır.
 
 **Canlı dağıtım yalnızca kullanıcı ilk dağıtımı onayladıktan sonra yapılmalıdır.**
 Aşağıdaki komutta `-ApproveDeployment` bu onayın verildiğini belirtir; betik ayrıca
@@ -102,8 +103,113 @@ dışındadır; mevcut dünya yedekleme düzenini koruyun.
 İlk onaylı denemede sunucuda giriş, NPC/Citizens ID'leri, skin/pozisyon, Türkçe
 sohbet, tek oyunculu konuşma kilidi, mesaj renkleri, yalnız oyuncuya görünen echo,
 yerel Ollama ve `/npcspeak reload` davranışını kontrol edin. Log kontrolü bu oyun
-içi kontrollerin yerini tutmaz. Bu ilk aşama lore algoritmasını değiştirmez;
-alıntı doğruluğu ve modelin kaynaklara bağlılığı sonraki geliştirme aşamasındadır.
+içi kontrollerin yerini tutmaz. Lore değişiklikleri aşağıda açıklanmıştır.
+
+### Superseed v5: kaynaklara bağlı lore araması ve yönetici tanısı
+
+Lore motoru `knowledge.yml` ile `knowledge/wiki/*.txt` dosyalarını başlangıçta
+ve `/npcspeak reload` sırasında belleğe alır. Sohbet sırasında disk/ağ erişimi,
+embedding modeli veya ek AI çağrısı yoktur. Özel wiki arşivi sunucuda kalır;
+wiki metinleri ve yerel `.bak` dosyaları derlenen JAR'a eklenmez.
+
+Eski `municipality`, `characters`, `aliases` ve retrieval anahtarları desteklenir.
+Mevcut sunucu dosyaları otomatik değiştirilmez. Yeni ayarlar eksikse varsayılanlar
+kullanılır; aşağıdaki isteğe bağlı alanları kendi `knowledge.yml` dosyanıza elle
+ekleyebilirsiniz. YAML/alan tipi hatası veya belirsiz alias varsa önceki lore dizini
+korunur ve yalnız yöneticiye/konsola yükleme hatası bildirilir. NPC kimlikleri
+ve Citizens verileri lore yeniden yüklemesinden etkilenmez.
+
+| Ayar | Varsayılan ve sınır | Davranış |
+| --- | --- | --- |
+| `enabled` | `true` | `false` lore eklemesini kapatır, eski sohbet/görev/hafıza akışını korur. |
+| `retrieval.max-snippets` | `3`, 0–8 | AI'ya en fazla bu kadar wiki pasajı; bir makaleden en fazla iki pasaj. `0` doğrulanmış kayıtları kapatmaz. |
+| `retrieval.max-context-chars` | `2600`, 600–7000 | JSON kaynak verisinin toplam karakter bütçesi; dağıtılan örnek dosya `3200` kullanır. Kurallar bu bütçenin dışında kalır. |
+| `retrieval.min-score` | `6.0`, 0–1000 | Wiki kabul puanı. Tam ad/alias eşleşmesinde 100 puan eklenir. |
+| `retrieval.min-query-coverage` | `0.65`, 0.5–1 | Tam ad bulunmadığında ayırt edici sorgu sözcüklerinin aynı pasajda karşılanan oranı. |
+
+Tam makale adı veya açıkça doğrulanmış alias, sözcük sırası korunarak aranır.
+`Plaza` tek başına `Iron Plaza` sayılmaz. Tam `Plaza AVM` adı, doğrulanmış alias
+grubundaki `Iron Plaza` makalesini bulabilir. Bir varlık açıkça eşleştiyse başka
+varlıkların makaleleri eklenmez; soru açıkça iki varlığı adlandırıyorsa ikisi de
+seçilebilir. İç içe adlarda uzun tam ad önceliklidir. Alias zinciri veya ayrı
+adların sözcüklerini birleştirerek yeni bir ad üretme yapılmaz.
+
+Türkçe büyük/küçük harf, aksan, `ı/i`, kesme işaretiyle yazılmış ekler ve sınırlı
+bir Türkçe durum eki listesi desteklenir. Sınırsız önek benzerliği kullanılmaz.
+Tam ad bulunmazsa en az iki **farklı**, ayırt edici sözcük, yeterli kapsam ve
+arşivde seyrek bir sözcük gerekir. Başlıktaki sözcükler gövde eşleşmesi yerine
+sayılmaz. Gövde puanı, eşleşen her sözcük için
+`2 × (1 + ln(1 + (makaleSayısı + 0.5)/(sözcüğüİçerenMakaleSayısı + 0.5)))`
+toplamıdır. Eşit puanlar başlık/kaynak/pasaj sırasıyla deterministik çözülür.
+
+Bilgi önceliği:
+
+1. `knowledge.yml` içindeki açıkça doğrulanmış güncel kayıtlar. Eski `municipality`
+   alanı güncel kayıt sayılır ve artık tüm NPC'lerce kullanılabilir.
+2. İlgili wiki alıntıları. Bunlar tarihsel olabileceği için güncel görev/atama
+   veya sahiplik belgesi sayılmaz.
+3. Kişilik ve üslup. Kişilik, oyuncu hafızası ve önceki AI yanıtları olgusal
+   bilgi kaynağı sayılmaz; eksik isim, tarih veya ilişkiyi dolduramaz.
+
+Kaynaklar JSON veri nesneleri olarak kurallardan ve kişilikten ayrılır.
+Alıntılardaki talimatlara uyulmaması, kaynakta olmayan ayrıntı için kısaca
+doğrulanmış kayıt bulunmadığının söylenmesi istenir. Kurallar karakter bütçesiyle
+kesilmez. Sığmayan kaynak/pasaj bütünüyle elenir; çok uzun tek bir cümle
+yarıya kesilerek modele verilmez. Güncel kayıtlara wiki'den önce bütçe ayrılır.
+
+Farklı varlıkların ilişkilerini alias olarak tanımlamayın. Örneğin bu kaydı mevcut
+`knowledge.yml` dosyanızdaki `verified-facts` listesine ekleyebilirsiniz:
+
+```yaml
+verified-facts:
+  - id: pursuing-evidence-production
+    subjects: ['Pursuing Evidence']
+    keywords: ['Visual Node', 'SPAT']
+    current: true
+    text: 'Pursuing Evidence, SPAT tarafından oluşturulan bir Visual Node yapımıdır.'
+```
+
+`subjects` tam adları, `keywords` ise sözcük veya tam ifadeleri eşleştirir.
+`current: false` doğrulanmış fakat güncel olduğu ileri sürülmeyen bir kaydı
+belirtir. Alanlar verilmezse kayıt metnindeki sözcükler kullanılır. Dosyayı
+düzenleyen yönetici kayıtların doğruluğundan ve güncelliğinden sorumludur.
+Mevcut `aliases.<kanonik-ad>.names` ve `.note` biçimi korunur; yalnız aynı
+varlığın doğrulanmış adları/eski adları için kullanılır. Aynı ad iki farklı
+kanonik gruba verilirse yükleme reddedilir. Satır içi noktalı varlık adları desteklenir.
+
+Tanı komutu:
+
+```text
+/npcspeak lore dogan_tirpan Plaza AVM'nin eski adı nedir?
+/npcspeak lore dogan_tirpan Belediye başkanı kimdir?
+/npcspeak lore dogan_tirpan Pursuing Evidence kim tarafından yapıldı?
+/npcspeak lore dogan_tirpan Olmayan Zümrüt Sarayı'nın sahibi kim?
+```
+
+Komut `npcspeak.admin` **ve** `npcspeak.lore.debug` yetkilerini gerektirir;
+ikincisi varsayılan olarak yalnız OP'lere verilir. Yalnız komutu çalıştırana
+durum, açık varlık eşleşmeleri, seçilen/elenecek en fazla on ek aday, puan,
+kapsam, eşleşen sözcükler ve AI'ya gerçekten verilen kaynak JSON'u gösterilir.
+`EXACT_TITLE` tam başlık, `VERIFIED_ALIAS` doğrulanmış ad, `BODY_SCORE` gövde
+puanı, `REJECT_*` ret, `OMIT_*` ise pasaj/karakter sınırı nedenidir. Wiki
+alıntısı verilmemesi ayrıca belirtilir; doğrulanmış kayıt olması bundan ayrıdır.
+
+Bu komut aynı anlık dizindeki sohbet aramasını tekrarlar; NPC'ye veya Ollama'ya
+soru göndermez, oyuncu sohbetlerini tutmaz ve önceki konuşmaları okumaz.
+NPC kimliği varlık kontrolü içindir; kaynak dizini tüm NPC'ler için ortaktır.
+Kendi deneme sorularınızı kullanın: Paper veya başka yönetim araçları yönetici
+komutlarını ayrıca loglayabilir. Lore tanısı kendiliğinden oyuncu mesajlarını
+veya alıntıları sunucu loguna yazmaz. Mevcut isteğe bağlı konuşma logu özelliği
+ayrı olarak korunur.
+
+JUnit testleri sentetik metinlerle retrieval, alias, ilgisiz kaynak reddi, boş
+sonuçlar, Türkçe, bütçe, kaynak prompt'u, yetki sınırı ve gerçek YAML yükleme/
+hatalı reload davranışını sınar. Özel 221 makalelik arşivin tamamı veya gerçek
+Gemma çıktısı testlere dahil değildir. Arama sözcükseldir; yazım hataları ve
+listelenmemiş ekler yanlış negatif üretebilir. Küçük modellerin bu kurallara
+uyması mutlak garanti değildir. İlk onaylı sunucu denemesinde aynı soruyu
+farklı NPC'lerde sorup tanı kaynağıyla yanıtı karşılaştırın; bilinmeyen isim,
+sahiplik ve tarih sorularında uydurma ayrıntı vermediğini kontrol edin.
 
 A Paper 1.20+ plugin that gives your NPCs real conversations, powered by a language model of your choice: a local Ollama install or any OpenAI-compatible API. Players walk up, right-click, and type. The NPC actually answers, in character, instead of cycling through three canned lines.
 

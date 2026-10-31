@@ -1,6 +1,7 @@
 package com.l299l.npcspeak.conversation;
 
 import com.l299l.npcspeak.knowledge.KnowledgeBase;
+import com.l299l.npcspeak.knowledge.GroundedPrompt;
 
 import com.l299l.npcspeak.ai.AiBackend;
 import com.l299l.npcspeak.ai.AiMessage;
@@ -402,22 +403,10 @@ public class ConversationManager {
     private List<AiMessage> buildConversationMessages(Player player, NpcData npc,
                                                       ConversationSession session, String userText) {
         String systemPrompt = PapiExpander.expand(player, npc.getConfig().buildSystemPrompt(npc.getDisplayName()));
-        // Retrieve only relevant local Superseed lore for this particular player question.
-        // Static personality and current municipality facts come from knowledge.yml.
-        String lore = KnowledgeBase.context(npc.getId(), userText);
-        if (!lore.isEmpty()) systemPrompt += lore;
         Map<String, String> playerMemory = cachedMemory.get(player.getUniqueId());
-        if (playerMemory != null) {
-            String memoryNote = playerMemory.get(npc.getId());
-            if (memoryNote != null) {
-                systemPrompt += " [Your memory from a previous conversation with this player: " + memoryNote + "]";
-            }
-        }
-        List<AiMessage> messages = new ArrayList<>();
-        messages.add(new AiMessage("system", systemPrompt));
-        messages.addAll(session.getHistory());
-        messages.add(new AiMessage("user", userText));
-        return messages;
+        var lore = KnowledgeBase.snapshot();
+        return GroundedPrompt.messages(systemPrompt, lore.persona(npc.getId()),
+                playerMemory == null ? null : playerMemory.get(npc.getId()), session.getHistory(), userText, lore);
     }
 
     private void maybeRunEvaluator(Player player, NpcData npc, List<AiMessage> history) {

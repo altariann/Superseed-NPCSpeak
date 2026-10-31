@@ -17,6 +17,11 @@ dependencies {
     compileOnly("net.citizensnpcs:citizensapi:2.0.33-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.6")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7.1")
+    testImplementation(platform("org.junit:junit-bom:5.11.4"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("com.google.code.gson:gson:2.10.1")
+    testImplementation("io.papermc.paper:paper-api:1.20-R0.1-SNAPSHOT")
 }
 
 java {
@@ -26,6 +31,10 @@ java {
 tasks.compileJava {
     options.release.set(17)
     options.compilerArgs.add("-Xlint:deprecation")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 tasks {

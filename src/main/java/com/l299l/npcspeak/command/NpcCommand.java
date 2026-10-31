@@ -7,6 +7,8 @@ import com.l299l.npcspeak.logging.ConversationLogger;
 import com.l299l.npcspeak.memory.NpcMemoryManager;
 import com.l299l.npcspeak.npc.NpcData;
 import com.l299l.npcspeak.npc.NpcManager;
+import com.l299l.npcspeak.knowledge.KnowledgeBase;
+import com.l299l.npcspeak.knowledge.LoreDiagnostics;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -63,6 +65,7 @@ public class NpcCommand implements CommandExecutor {
             case "example" -> handleExample(sender, label, args);
             case "memory" -> handleMemory(sender, label, args);
             case "log" -> handleLog(sender, args);
+            case "lore" -> handleLore(sender, args);
             case "reload" -> handleReload(sender);
             default -> { sendUsage(sender, label); yield true; }
         };
@@ -539,8 +542,32 @@ public class NpcCommand implements CommandExecutor {
         return true;
     }
 
+    private boolean handleLore(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("npcspeak.lore.debug")) {
+            sender.sendMessage(Component.text("Lore tanısı için yetkiniz yok.", NamedTextColor.RED));
+            return true;
+        }
+        if (args.length < 3) {
+            sender.sendMessage(Component.text("Kullanım: /npcspeak lore <npc-id> <deneme sorusu>", NamedTextColor.YELLOW));
+            return true;
+        }
+        if (npcManager.getById(args[1].toLowerCase(java.util.Locale.ROOT)) == null) {
+            sender.sendMessage(Component.text("NPC bulunamadı.", NamedTextColor.RED));
+            return true;
+        }
+        String question = String.join(" ", Arrays.copyOfRange(args, 2, args.length));
+        // Same immutable index and retrieval method as an actual conversation; no AI request.
+        for (String line : LoreDiagnostics.lines(KnowledgeBase.retrieve(question))) {
+            sender.sendMessage(Component.text(line, NamedTextColor.GRAY));
+        }
+        return true;
+    }
+
     private boolean handleReload(CommandSender sender) {
         npcManager.reloadAll();
+        if (!KnowledgeBase.wasLastReloadSuccessful()) {
+            sender.sendMessage(Component.text("Lore yeniden yüklenemedi; önceki bilgi dizini korundu. knowledge.yml dosyasını kontrol edin.", NamedTextColor.YELLOW));
+        }
         sender.sendMessage(Component.text("Reloaded " + npcManager.count() + " NPC(s).", NamedTextColor.GREEN));
         return true;
     }
@@ -739,5 +766,6 @@ public class NpcCommand implements CommandExecutor {
         sender.sendMessage(Component.text("  /" + label + " memory list <id>", NamedTextColor.WHITE));
         sender.sendMessage(Component.text("  /" + label + " memory clear <id> <player|*>", NamedTextColor.WHITE));
         sender.sendMessage(Component.text("  /" + label + " reload", NamedTextColor.WHITE));
+        if (sender.hasPermission("npcspeak.lore.debug")) sender.sendMessage(Component.text("  /" + label + " lore <npc-id> <deneme sorusu>", NamedTextColor.WHITE));
     }
 }

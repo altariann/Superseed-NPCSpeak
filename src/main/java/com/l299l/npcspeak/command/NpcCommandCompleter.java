@@ -9,8 +9,8 @@ import java.util.List;
 
 public class NpcCommandCompleter implements TabCompleter {
 
-    private static final List<String> SUBCOMMANDS = List.of("spawn", "remove", "list", "info", "edit", "task", "example", "memory", "log", "reload");
-    private static final List<String> ID_SUBCOMMANDS = List.of("remove", "info", "edit", "task", "log");
+    private static final List<String> SUBCOMMANDS = List.of("spawn", "remove", "list", "info", "edit", "task", "example", "memory", "log", "reload", "lore");
+    private static final List<String> ID_SUBCOMMANDS = List.of("remove", "info", "edit", "task", "log", "lore");
     private static final List<String> MEMORY_SUBCOMMANDS = List.of("list", "clear");
     private static final List<String> EDIT_FIELDS = List.of("name", "greeting", "prompt", "topic", "avoid", "memory", "maxinteractions", "lockaftertask", "logconversations");
     private static final List<String> TASK_SUBCOMMANDS = List.of("info", "clear", "type", "goal", "check", "maxexchanges", "difficulty", "intelligentquantity", "require", "onsuccess", "onfailure");
@@ -31,11 +31,13 @@ public class NpcCommandCompleter implements TabCompleter {
 
         if (args.length == 1) {
             return SUBCOMMANDS.stream()
+                    .filter(s -> !s.equals("lore") || sender.hasPermission("npcspeak.lore.debug"))
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .toList();
         }
 
         if (args.length == 2 && ID_SUBCOMMANDS.contains(args[0].toLowerCase())) {
+            if (args[0].equalsIgnoreCase("lore") && !sender.hasPermission("npcspeak.lore.debug")) return List.of();
             return npcManager.getAllIds().stream()
                     .filter(id -> id.startsWith(args[1].toLowerCase()))
                     .toList();

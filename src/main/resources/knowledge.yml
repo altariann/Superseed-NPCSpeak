@@ -1,4 +1,4 @@
-# Superseed NPCSpeak lore / knowledge, v4
+# Superseed NPCSpeak lore / knowledge, v5
 # Editable without rebuilding: /npcspeak reload
 # This is NOT the wiki itself. Put extracted wiki articles in knowledge/wiki/*.txt
 # Unknown current facts are intentionally omitted rather than guessed.
@@ -6,6 +6,10 @@ enabled: true
 retrieval:
   max-snippets: 3
   max-context-chars: 3200
+  # Lexical fallback requires two informative terms, rare content and this coverage.
+  # Complete title/explicit alias matches receive a 100-point entity bonus.
+  min-score: 6.0
+  min-query-coverage: 0.65
 
 characters:
   dogan_tirpan: |-
@@ -42,3 +46,11 @@ aliases:
     names:
       - 'Iron Plaza'
     note: "Iron Plaza, Plaza AVM'nin eski adıdır; aynı yapıdır."
+
+# Explicit relationships are facts, NOT aliases: these entities are distinct.
+verified-facts:
+  - id: pursuing-evidence-production
+    subjects: ['Pursuing Evidence']
+    keywords: ['Visual Node', 'SPAT']
+    current: true
+    text: "Pursuing Evidence, SPAT tarafından oluşturulan bir Visual Node yapımıdır."
