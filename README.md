@@ -247,9 +247,57 @@ uyması mutlak garanti değildir. İlk onaylı sunucu denemesinde aynı soruyu
 farklı NPC'lerde sorup tanı kaynağıyla yanıtı karşılaştırın; bilinmeyen isim,
 sahiplik ve tarih sorularında uydurma ayrıntı vermediğini kontrol edin.
 
-Gerçek arşiv ve Gemma 3 4B için, canlı sunucuyu değiştirmeden uygulanacak
-[kontrollü test planı](docs/lore-validation-plan.md) hazırdır. Bu plan henüz
-yürütülmüş bir test sonucu değildir.
+Gerçek arşiv için AI'sız Aşama A yürütüldü; beklentilerin doğrulanma durumu ve
+ölçümler [Aşama A raporunda](docs/stage-a-results.md) açıklanmıştır. Gemma
+çağrısı yapılmadı; [kontrollü test planındaki](docs/lore-validation-plan.md)
+B/C aşamaları ayrıca değerlendirilecektir.
+
+Gerçek arşivden gelen düzeltmeler: açık yerel `#REDIRECT`, `#YÖNLENDİRME` ve
+`Şuraya yönlendir:` kayıtları en fazla üç adımda takip edilir. Döngü, eksik veya
+belirsiz hedefte tahmin yapılmaz. Bunlar yönetici alias'ı sayılmaz; hedef
+alıntının JSON'unda `viaWikiRedirect`, tanıda `WIKI_REDIRECT` görünür. Aynı
+pasaj iki kez gönderilmez. Infobox `alan=değer` birimleri korunur; açık ad
+eşleştikten sonra pasajlar sorulan ayrıntıya göre sıralanır. `"…" adlı/isimli`
+biçimindeki bilinmeyen adlar, bilinen bir önek veya ortak gövde sözcükleriyle
+değiştirilmez. Genel bir sözcük kendi tam kayıtlı makalesi olarak tek konu
+halinde sorulabilir; başka bir soruda geniş eşleme anahtarı olamaz.
+
+Özel arşivi kopyalamak ve üretim motorunu AI olmadan değerlendirmek için
+araçlar isteğe bağlıdır; normal `build` özel veriye bağımlı değildir:
+
+```powershell
+# Yalnız gerekli knowledge.yml ve wiki; mevcut snapshot üzerine yazmaz
+.\scripts\Copy-LoreSnapshot.ps1 -SourceData "D:\Minecraft\Server\plugins\NPCSpeak" -SnapshotRoot "D:\PrivateTests\run-001"
+
+# Klasörler mutlak yol olmalı; rapor klasörü yeni ve veri klasöründen ayrı olmalı
+.\gradlew.bat evaluateLore -PloreMode=inventory -PloreData="D:\PrivateTests\run-001\data" -PloreOutput="D:\PrivateTests\run-001\inventory"
+.\gradlew.bat evaluateLore -PloreData="D:\PrivateTests\run-001\data" -PloreCases="D:\PrivateTests\run-001\cases.json" -PloreOutput="D:\PrivateTests\run-001\results"
+```
+
+Snapshot dosyaları hash ile doğrulanıp salt okunur yapılır; kaynak dosyaların
+nitelikleri değiştirilmez. Gerçek config.yml/server.properties, NPC, Citizens,
+oyuncu veya chat dosyaları kopyalanmaz. Arşiv, sorular, kanıtlar ve ham raporlar
+Git'ten hariç özel klasörde kalmalıdır. Bu oturumun özel verileri `.local-safety`
+altındadır; başka bir klasör kullanırsanız Git'ten ayrıca hariç tutun.
+
+Vaka JSON'u bir nesne dizisidir; her nesnede `id`, `group`, `query`,
+`reviewStatus`, `allowedTitles`, `requiredTitles`, `noSources`,
+`requiredEvidence`, `requiredKinds`, `forbiddenKinds`, `evidenceFile`,
+`evidenceQuote` bulunur. Liste alanları boş olsa da `[]` olmalıdır.
+`evidenceFile` veri klasörüne göreli kanıt dosyasıdır; `evidenceQuote` o dosyada
+bulunmalıdır. Sadece dondurulmuş kaynaklardan beklenti yazın; sorgu sonucundan
+beklenti üretmeyin. `reviewStatus`: `HUMAN_VERIFIED`,
+`SOURCE_REVIEWED_BY_ASSISTANT` veya `GENERATED_UNREVIEWED`. İnsan doğrulaması
+olmadıkça ilk değeri kullanmayın. Kanıtlı güncel kayıt beklentisi üretim
+config'inde eksikse bu fark ayrıca işaretlenmelidir.
+
+Araç gerçek `KnowledgeBase.load`/`LoreEngine.retrieve` kodunu kullanır; ayrı
+bir arama uygulaması içermez. Vaka hash'i, motor class hash'i, inceleme
+durumuna/gruba göre eşleşmeler, p50/p95, tüm aday/gerekçeler ve birebir JSON
+kaynaklar özel rapora yazılır. Ters makale sırasıyla sonuç eşitliği, JSON,
+bütçe ve tam grounding kuralları da denetlenir. `evaluateLore` rapor üretir;
+komutun başarılı tamamlanması tüm vakaların geçtiği anlamına gelmez.
+`summary.json` ve `results.jsonl` okunmalıdır. Eski raporlar üzerine yazılmaz.
 
 A Paper 1.20+ plugin that gives your NPCs real conversations, powered by a language model of your choice: a local Ollama install or any OpenAI-compatible API. Players walk up, right-click, and type. The NPC actually answers, in character, instead of cycling through three canned lines.
 

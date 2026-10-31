@@ -1,7 +1,8 @@
 # Gerçek wiki ve Gemma 3 4B kontrollü doğrulama planı
 
-Durum: **plan hazır; gerçek arşiv/model koşusu henüz yapılmadı.** Bu belge
-ölçülmüş başarı veya canlı dağıtım onayı değildir. Çalışma mevcut development
+Durum: **AI'sız Aşama A yürütüldü; Gemma B/C koşuları yapılmadı.**
+Gerçek sonuçlar ve insan doğrulaması sınırı [Aşama A raporundadır](stage-a-results.md).
+Bu plan kendi başına ölçülmüş başarı veya canlı dağıtım onayı değildir. Çalışma mevcut development
 dalı ve PR #2 üzerinde devam eder; yeni PR veya otomatik merge gerektirmez.
 
 ## Sınırlar ve hazırlık
@@ -10,7 +11,8 @@ Testler Minecraft sürecini durdurmadan, JAR değiştirmeden, RCON/oyuncu sohbet
 kullanmadan yürütülecek. Üretim `knowledge.yml`, wiki, NPC ve Citizens dosyaları
 değiştirilmeyecek. Model testi aynı makinede CPU/bellek tüketebileceği için gerçek
 Ollama yükü ayrıca uygun bir test zamanında başlatılacak; bu hazırlık aşamasında
-Ollama'ya istek gönderilmez. Test aracı henüz uygulanmış kabul edilmemelidir.
+Ollama'ya istek gönderilmez. Aşama A aracı artık `evaluateLore` göreviyle
+uygulanmıştır; normal derlemeye gerçek veri/model bağımlılığı eklenmemiştir.
 
 1. Git commit'i, JAR SHA-256, JDK sürümü ve 48 Java testi/dağıtım denetimlerinin
    raporu kaydedilir. Önce son kaynakların temiz derlemesi doğrulanır.
