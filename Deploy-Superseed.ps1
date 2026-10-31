@@ -2,7 +2,8 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [ValidateSet('Inspect', 'Build', 'Deploy')][string]$Mode = 'Inspect',
-    [string]$ServerRoot = 'C:\Users\Altar\Desktop\Superseed Server - 26.1.2 Release',
+    [string]$ServerRoot = '',
+    [string]$LocalSettingsPath = (Join-Path $PSScriptRoot 'Deploy-Superseed.local.json'),
     [string]$StartBat = 'START.bat',
     [string]$JavaHome = '',
     [switch]$ApproveDeployment,
@@ -15,6 +16,34 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $RepoRoot = $PSScriptRoot
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+function Resolve-DeploymentServerRoot([string]$ExplicitRoot, [string]$SettingsPath) {
+    $configured = $ExplicitRoot
+    if ([string]::IsNullOrWhiteSpace($configured)) {
+        if (!(Test-Path -LiteralPath $SettingsPath -PathType Leaf)) {
+            throw 'Sunucu yolu gerekli: -ServerRoot kullanın veya takip edilmeyen Deploy-Superseed.local.json dosyasını hazırlayın.'
+        }
+        try {
+            $json = [IO.File]::ReadAllText($SettingsPath)
+            # Windows PowerShell may unwrap a one-element JSON array; require an object explicitly.
+            if (!$json.TrimStart().StartsWith('{')) { throw 'Expected JSON object' }
+            $settings = $json | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch { throw 'Yerel dağıtım ayarı geçerli JSON olmalı; dosya içeriği güvenlik nedeniyle çıktıya yazılmadı.' }
+        if ($null -eq $settings -or $settings -is [array] -or
+            $null -eq $settings.PSObject.Properties['ServerRoot'] -or
+            $settings.ServerRoot -isnot [string] -or [string]::IsNullOrWhiteSpace($settings.ServerRoot)) {
+            throw 'Yerel dağıtım ayarında ServerRoot alanı dolu bir metin olmalı.'
+        }
+        $configured = $settings.ServerRoot
+    }
+    # No fallback to the current directory, root-relative paths or a remembered live server.
+    if ($configured -notmatch '^(?:[a-zA-Z]:[\\/]|\\\\[^\\/]+[\\/][^\\/]+)') {
+        throw 'ServerRoot mutlak bir Windows klasör yolu olmalı.'
+    }
+    if (!(Test-Path -LiteralPath $configured -PathType Container)) { throw 'Belirtilen sunucu klasörü bulunamadı.' }
+    return (Resolve-Path -LiteralPath $configured).Path
+}
 
 function Get-ServerProperties([string]$Root) {
     $values = @{}
@@ -195,10 +224,65 @@ function Start-ServerBat([string]$Root, [string]$Bat, [string]$Java) {
     } finally { $env:PATH = $oldPath; $env:JAVA_HOME = $oldHome }
 }
 
-function Test-StartupLog([string]$Text) {
-    $errors = $Text -match '(?im)(ERROR|SEVERE|Exception|Could not load|Error occurred while|Disabling NPCSpeak|Disabling Citizens)'
-    return (!$errors -and $Text -match '\[NPCSpeak\].*Enabling NPCSpeak' -and
-        $Text -match '\[Citizens\].*Enabling Citizens' -and $Text -match 'Done \([\d.,]+s\)!')
+function Get-StartupLogStatus([string]$Text, [string[]]$KnownPluginNames = @()) {
+    $fatal = [Collections.Generic.List[string]]::new()
+    $otherPluginErrors = 0
+    $npcStarted = $false
+    $citizensStarted = $false
+    $done = $false
+    # Keep stack traces with the event that owns them; a bare Exception search loses attribution.
+    $events = [regex]::Split($Text, '(?m)(?=^\[(?:\d{2}:\d{2}:\d{2}(?:\.\d+)?\]\s*\[)?[^\]\r\n]+\](?:\s|:)|^Done \()')
+    $platformLoggers = @('Minecraft', 'Paper', 'PluginInitializerManager', 'PaperPluginInstanceManager', 'JavaPluginLoader', 'PluginClassLoader')
+    foreach ($event in $events) {
+        if ([string]::IsNullOrWhiteSpace($event)) { continue }
+        $firstLine = ($event -split '\r?\n', 2)[0]
+        # Player text is not a health signal, even if it quotes an error or plugin prefix.
+        if ($firstLine -match '\[(?:Async Chat|AsyncChat|Chat Thread)[^\]]*/INFO\]|\]\s*:\s*<[^>]+>\s') { continue }
+        $owner = ''
+        if ($firstLine -match '\]\s*:?\s*\[(?<plugin>[^\]]+)\]\s') { $owner = $matches['plugin'] }
+        elseif ($firstLine -match '^\[(?<plugin>[a-zA-Z][\w .-]*)\]\s') { $owner = $matches['plugin'] }
+        # Unknown bracketed loggers can be Paper subsystems, not necessarily plugins.
+        $namedPlugin = $owner -and $owner -notin $platformLoggers -and $owner -in (@('NPCSpeak', 'Citizens') + $KnownPluginNames)
+        $errorEvent = $firstLine -match '/(?:ERROR|SEVERE|FATAL)\]|\[(?:ERROR|SEVERE|FATAL)\]'
+        $exception = $event -match '(?m)^\s*(?:Caused by:\s*)?(?:[\w$]+\.)*[\w$]*(?:Exception|Error)(?::|\s|$)'
+        $failureText = $firstLine -match '(?i)\b(?:failed|failure|could not|unable to|error occurred|exception)\b'
+
+        # These affect the whole JVM/server, including when another plugin triggers them.
+        if ($event -match '(?i)(?:java\.lang\.)?(?:OutOfMemoryError|VirtualMachineError)|GC overhead limit exceeded|unable to create native thread|No space left on device|There is not enough space on the disk') {
+            $fatal.Add('JVM_OR_DISK_FAILURE')
+        }
+        if ((!$namedPlugin -and $firstLine -match '(?i)FAILED TO BIND TO PORT|Failed to (?:start the minecraft server|start server|check session lock|acquire.*lock)|Encountered an unexpected exception|Exception in server tick loop|The server has stopped responding|A single server tick took') -or $firstLine -match '/FATAL\]') {
+            $fatal.Add('CRITICAL_SERVER_FAILURE')
+        }
+        if (!$namedPlugin -and $firstLine -match '(?i)\b(?:Stopping server|Closing Server|All dimensions are saved)\b') {
+            $fatal.Add('SERVER_STOPPING')
+        }
+        if ($owner -in @('NPCSpeak', 'Citizens')) {
+            if ($errorEvent -or $exception -or $failureText -or $firstLine -match '(?i)\bDisabling (?:NPCSpeak|Citizens)\b') {
+                $fatal.Add('TARGET_PLUGIN_FAILURE')
+            }
+            if ($owner -eq 'NPCSpeak' -and $firstLine -match '\bEnabling NPCSpeak\b') { $npcStarted = $true }
+            if ($owner -eq 'Citizens' -and $firstLine -match '\bEnabling Citizens\b') { $citizensStarted = $true }
+        } elseif (!$namedPlugin -and $firstLine -match '(?i)(?:Error occurred while (?:enabling|loading|disabling)|Could not pass event .+? to)\s+(?<failedPlugin>[\w.-]+)') {
+            if ($matches['failedPlugin'] -in @('NPCSpeak', 'Citizens')) { $fatal.Add('TARGET_PLUGIN_FAILURE') }
+            else { $otherPluginErrors++ }
+        } elseif (!$namedPlugin -and $firstLine -match '(?i)(?:Could not|Failed to|Unable to) (?:load|enable|initialize)\b.*\b(?:NPCSpeak|Citizens)\b') {
+            $fatal.Add('TARGET_PLUGIN_FAILURE')
+        } elseif ($errorEvent -or $exception) {
+            if ($namedPlugin) { $otherPluginErrors++ }
+            else { $fatal.Add('UNATTRIBUTED_SERVER_ERROR') }
+        }
+        if (!$namedPlugin -and $firstLine -match '\bDone \([\d.,]+s\)!' -and $npcStarted -and $citizensStarted) { $done = $true }
+    }
+    return [pscustomobject]@{
+        Ready = $npcStarted -and $citizensStarted -and $done -and $fatal.Count -eq 0
+        FatalReasons = @($fatal | Sort-Object -Unique)
+        OtherPluginErrorCount = $otherPluginErrors
+    }
+}
+
+function Test-StartupLog([string]$Text, [string[]]$KnownPluginNames = @()) {
+    return (Get-StartupLogStatus $Text $KnownPluginNames).Ready
 }
 
 function Get-LogHeader([string]$Root) {
@@ -208,7 +292,9 @@ function Get-LogHeader([string]$Root) {
     try { return $reader.ReadLine() } finally { $reader.Dispose() }
 }
 
-function Wait-ServerReady([string]$Root, [hashtable]$Properties, [string]$BatText, [datetime]$Since, [int]$Timeout, [string]$OldHeader) {
+function Wait-ServerReady {
+    [CmdletBinding()]
+    param([string]$Root, [hashtable]$Properties, [string]$BatText, [datetime]$Since, [int]$Timeout, [string]$OldHeader, [string[]]$KnownPluginNames = @())
     $deadline = [datetime]::UtcNow.AddSeconds($Timeout)
     $log = Join-Path $Root 'logs\latest.log'
     while ([datetime]::UtcNow -lt $deadline) {
@@ -216,13 +302,17 @@ function Wait-ServerReady([string]$Root, [hashtable]$Properties, [string]$BatTex
             $text = [IO.File]::ReadAllText($log)
             # Never accept the previous boot's Done/Enabling lines during log rotation.
             if ($OldHeader -and $text.StartsWith($OldHeader)) { Start-Sleep -Seconds 2; continue }
-            if (Test-StartupLog $text) {
+            $status = Get-StartupLogStatus $text $KnownPluginNames
+            if ($status.FatalReasons.Count -gt 0) {
+                throw "Yeni başlangıçta kritik veya NPCSpeak/Citizens hatası: $($status.FatalReasons -join ', '). Ayrıntılar yerel logs/latest.log dosyasında."
+            }
+            if ($status.Ready) {
                 $identity = Get-ServerIdentity $Properties $BatText
                 if ($identity.Process.StartTime.ToUniversalTime() -lt $Since.AddSeconds(-2)) { throw 'Eski işlem başarı olarak kabul edilmedi.' }
+                if ($status.OtherPluginErrorCount -gt 0) {
+                    Write-Warning "NPCSpeak/Citizens başlangıcı doğrulandı; diğer pluginlere ait $($status.OtherPluginErrorCount) hata kaydı var. Bunlar geri alma başlatmadı; logs/latest.log dosyasını ayrıca inceleyin."
+                }
                 return $identity
-            }
-            if ($text -match '(?im)(ERROR|SEVERE|Exception|Could not load|Error occurred while)') {
-                throw 'Yeni başlangıç günlüğünde hata görüldü. Ayrıntılar yerel logs/latest.log dosyasında.'
             }
         }
         Start-Sleep -Seconds 2
@@ -238,7 +328,7 @@ function Invoke-Deployment {
         Write-Host "Derleme ve betik testleri başarılı: $built"
         return
     }
-    $root = (Resolve-Path -LiteralPath $ServerRoot).Path
+    $root = Resolve-DeploymentServerRoot $ServerRoot $LocalSettingsPath
     if ((Get-Item -LiteralPath $root).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Sunucu kökü junction olamaz.' }
     if ($StartBat -ne [IO.Path]::GetFileName($StartBat) -or [IO.Path]::GetExtension($StartBat) -ne '.bat') {
         throw 'StartBat sunucu ana klasöründeki bir BAT dosyası olmalı.'
@@ -250,6 +340,8 @@ function Invoke-Deployment {
     $plugins = Join-Path $root 'plugins'
     if ((Get-Item -LiteralPath $plugins).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'plugins klasörü junction olamaz.' }
     $oldJar = Get-NpcSpeakJar $plugins
+    $knownPluginNames = @(Get-ChildItem -LiteralPath $plugins -File -Filter '*.jar' | Where-Object {$_.Extension -ieq '.jar'} |
+        ForEach-Object { Get-PluginName $_.FullName } | Where-Object {$_})
     Write-Host "Başlatıcı: $bat"
     Write-Host "Mevcut NPCSpeak: $($oldJar.Name)"
     if ($Mode -eq 'Inspect') {
@@ -320,7 +412,7 @@ function Invoke-Deployment {
         $since = [datetime]::UtcNow
         $header = Get-LogHeader $root
         Start-ServerBat $root $bat $identity.Java
-        $ready = Wait-ServerReady $root $properties $batText $since $StartTimeoutSeconds $header
+        $ready = Wait-ServerReady $root $properties $batText $since $StartTimeoutSeconds $header $knownPluginNames
         Write-Host "Dağıtım başarılı. NPCSpeak ve Citizens başlangıcı doğrulandı; PID: $($ready.Process.Id). Yedek: $backup"
     } catch {
         $failure = $_
@@ -347,7 +439,7 @@ function Invoke-Deployment {
                 $since = [datetime]::UtcNow
                 $header = Get-LogHeader $root
                 Start-ServerBat $root $bat $identity.Java
-                $null = Wait-ServerReady $root $properties $batText $since $StartTimeoutSeconds $header
+                $null = Wait-ServerReady $root $properties $batText $since $StartTimeoutSeconds $header $knownPluginNames
                 Write-Warning 'Önceki JAR ile sunucu yeniden başlatıldı. Veri klasörleri otomatik geri sarılmadı.'
             } catch {
                 Write-Warning "Otomatik geri alma tamamlanamadı: $($_.Exception.Message) Yedek: $backup. Zorla kapatma yapılmadı."

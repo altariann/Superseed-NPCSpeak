@@ -15,15 +15,33 @@ ve sunucu dosyalarını değiştirmez. BAT, Java komutu, port sahipliği ve mevc
 NPCSpeak JAR kimliği denetlenir. İşlem bilgilerine erişilemiyorsa işlem durur.
 
 ```powershell
-# Yalnızca inceleme (varsayılan sunucu klasörü ve START.bat)
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1
+# Yalnızca inceleme (sunucu yolunu kendi mutlak yolunuzla değiştirin)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1 -ServerRoot "D:\Minecraft\Server"
 
 # Sunucuya erişmeden temiz derleme + Gradle testleri + çevrimdışı betik testleri
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1 -Mode Build -JavaHome "C:\Program Files\Eclipse Adoptium\jdk-26.0.2.101-hotspot"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1 -Mode Build -JavaHome "D:\Java\jdk-26"
 
 # Sadece betik testleri; geçici dosyalar ve taklit sunucu kullanılır
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Deployment.ps1
 ```
+
+Kaynak kodda varsayılan sunucu klasörü yoktur. İsterseniz örneği yerel ayara
+kopyalayıp `ServerRoot` değerini kendi **mutlak** sunucu yolunuzla düzenleyin:
+
+```powershell
+Copy-Item .\Deploy-Superseed.settings.example.json .\Deploy-Superseed.local.json
+# Yerel JSON içindeki örnek yolu düzenledikten sonra:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1
+```
+
+`Deploy-Superseed.local.json` Git tarafından yok sayılır; parola içermemelidir.
+`-ServerRoot` verilirse yerel JSON okunmaz ve komut parametresi öncelik kazanır.
+`-LocalSettingsPath` ile farklı bir JSON seçilebilir; özel dosyanızı Git'ten
+ayrıca hariç tutun. Yol eksik, göreli, bozuk veya bulunamıyorsa Inspect/Deploy
+sunucuya erişmeden durur. `Build` modu sunucu yolu ve yerel ayar gerektirmez.
+Aşağıdaki prova/dağıtım örnekleri düzenlenmiş yerel JSON bulunduğunu varsayar;
+alternatif olarak her komuta `-ServerRoot` ekleyebilirsiniz. Hiçbir ayar,
+`-WhatIf` veya onay bayrağı canlı dağıtım için kullanıcı onayının yerini tutmaz.
 
 `ExecutionPolicy Bypass` yalnızca başlatılan PowerShell sürecine uygulanır;
 makinenin kalıcı yürütme ilkesi değiştirilmez. Projenin Gradle toolchain'i JDK 26,
@@ -61,7 +79,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1 -
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1 -Mode Deploy -ApproveDeployment -RconFirewallVerified
 ```
 
-`-ServerRoot`, `-StartBat`, `-JavaHome`, `-StopTimeoutSeconds` (180) ve
+`-ServerRoot`, `-LocalSettingsPath`, `-StartBat`, `-JavaHome`, `-StopTimeoutSeconds` (180) ve
 `-StartTimeoutSeconds` (300) parametreleri kullanılabilir. Desteklenen BAT,
 incelenen tek satırlı `java ... io.papermc.paperclip.Main -nogui` biçimidir.
 BAT ve çalışan işlemin komutu eşleşmezse betik durur; `start.cmd`/AutoPlug
@@ -89,7 +107,25 @@ Dağıtım sırası:
 6. Aynı BAT gizli bir `cmd` sürecinde, aynı çalışma klasörü ve Java ile çalışır.
    Yeni `logs/latest.log` içinde NPCSpeak/Citizens etkinleşmesi, Paper `Done`
    satırı ve yeni süreç doğrulanır. Eski başlangıç satırları başarı sayılmaz.
-   Hata satırı varsa dağıtım başarısız bildirilir; oyuncu konuşmaları konsola basılmaz.
+   NPCSpeak/Citizens hataları veya kritik sunucu hataları varsa dağıtım başarısız
+   bildirilir; oyuncu konuşmaları konsola basılmaz.
+
+Başlangıç denetimi log olayını stack trace'iyle birlikte değerlendirir. Kurulu
+JAR'ların `plugin.yml` kimlikleriyle doğrulanmış **başka** pluginlere ait hatalar
+uyarı olarak sayılır; NPCSpeak ve Citizens etkinleşmesi, onların ardından gelen
+Paper `Done` satırı ve yeni Java süreci doğrulanmışsa geri alma başlatmaz.
+Bukkit'in açıkça başka bir pluginin etkinleşmesine atfettiği hata da bu kapsamdadır.
+Hata ayrıntıları veya ham loglar çıktı olarak kopyalanmaz; yalnız adet bildirilir.
+
+NPCSpeak/Citizens yükleme/etkinleşme hataları, hedef pluginin kapanması, JVM bellek
+ve disk dolması hataları, port bağlama, sunucu başlangıcı/tick-loop/watchdog/oturum
+kilidi hataları, `FATAL` ve sunucunun kapanması başarısızlık sayılır. Başka plugin
+tetiklese bile JVM/disk hatası kritiktir. Sahibi belirlenemeyen sunucu `ERROR`/
+exception kayıtları güvenli tarafta kalmak için başarısız sayılır; bilinmeyen
+bir `[logger]` etiketi kendiliğinden plugin kabul edilmez. Eksik hedef etkinleşmesi
+veya `Done` zaman aşımına yol açar. Bu denetim standart Paper log biçimini
+destekler; özel log biçimleri için uyarlama gerekebilir. Günlükteki eski
+başlangıç satırları ve tanınan oyuncu sohbet kayıtları sağlık sinyali sayılmaz.
 
 Başlangıç hatasında yeni süreç güvenli RCON `stop` ile kapatılabiliyorsa önceki JAR
 geri yüklenir ve aynı BAT ile başlatılır. Sürecin kapandığı kanıtlanamıyorsa veya
@@ -210,6 +246,10 @@ listelenmemiş ekler yanlış negatif üretebilir. Küçük modellerin bu kurall
 uyması mutlak garanti değildir. İlk onaylı sunucu denemesinde aynı soruyu
 farklı NPC'lerde sorup tanı kaynağıyla yanıtı karşılaştırın; bilinmeyen isim,
 sahiplik ve tarih sorularında uydurma ayrıntı vermediğini kontrol edin.
+
+Gerçek arşiv ve Gemma 3 4B için, canlı sunucuyu değiştirmeden uygulanacak
+[kontrollü test planı](docs/lore-validation-plan.md) hazırdır. Bu plan henüz
+yürütülmüş bir test sonucu değildir.
 
 A Paper 1.20+ plugin that gives your NPCs real conversations, powered by a language model of your choice: a local Ollama install or any OpenAI-compatible API. Players walk up, right-click, and type. The NPC actually answers, in character, instead of cycling through three canned lines.
 

@@ -25,6 +25,26 @@ function New-TestJar([string]$Path, [string]$Name) {
     } finally { $zip.Dispose() }
 }
 try {
+    $localSettings = Join-Path $testRoot 'Deploy-Superseed.local.json'
+    $missingSettings = Join-Path $testRoot 'missing.local.json'
+    Assert-Throws { Resolve-DeploymentServerRoot '' $missingSettings } 'Sunucu yolu yoksa mevcut klasöre veya eski sunucuya dönülmemeli.'
+    [IO.File]::WriteAllText($localSettings, (@{ServerRoot=$testRoot} | ConvertTo-Json))
+    Assert-True ((Resolve-DeploymentServerRoot '' $localSettings) -eq $testRoot) 'Takip edilmeyen yerel JSON sunucu yolunu seçebilmeli.'
+    [IO.File]::WriteAllText($localSettings, '{ invalid json')
+    Assert-True ((Resolve-DeploymentServerRoot $testRoot $localSettings) -eq $testRoot) 'Komut parametresi yerel ayardan öncelikli olmalı; JSON okunmamalı.'
+    Assert-Throws { Resolve-DeploymentServerRoot '' $localSettings } 'Bozuk yerel JSON reddedilmeli.'
+    [IO.File]::WriteAllText($localSettings, ('[' + (@{ServerRoot=$testRoot} | ConvertTo-Json -Compress) + ']'))
+    Assert-Throws { Resolve-DeploymentServerRoot '' $localSettings } 'Tek elemanlı JSON dizisi ayar nesnesi sayılmamalı.'
+    [IO.File]::WriteAllText($localSettings, '{"ServerRoot":42}')
+    Assert-Throws { Resolve-DeploymentServerRoot '' $localSettings } 'Sayısal sunucu yolu reddedilmeli.'
+    [IO.File]::WriteAllText($localSettings, '{}')
+    Assert-Throws { Resolve-DeploymentServerRoot '' $localSettings } 'Eksik yerel ServerRoot reddedilmeli.'
+    [IO.File]::WriteAllText($localSettings, '{"ServerRoot":" "}')
+    Assert-Throws { Resolve-DeploymentServerRoot '' $localSettings } 'Boş yerel ServerRoot reddedilmeli.'
+    Assert-Throws { Resolve-DeploymentServerRoot '.' $missingSettings } 'Göreli sunucu yolu reddedilmeli.'
+    Assert-Throws { Resolve-DeploymentServerRoot 'C:relative' $missingSettings } 'Sürücüye göreli yol mutlak yol sayılmamalı.'
+    Assert-Throws { Resolve-DeploymentServerRoot (Join-Path $testRoot 'not-a-server') $missingSettings } 'Var olmayan klasör reddedilmeli.'
+
     $jar = Join-Path $testRoot 'arbitrary-name.jar'
     New-TestJar $jar 'NPCSpeak'
     New-TestJar (Join-Path $testRoot 'Citizens.jar') 'Citizens'
@@ -61,6 +81,32 @@ try {
     Assert-True (!(Test-StartupLog ($validLog + "`n[Server/ERROR]: Exception test"))) 'Başlangıç hatası reddedilmeli.'
     Assert-True (!(Test-StartupLog 'Done (1.0s)!')) 'Sadece Done yeterli olmamalı.'
 
+    $otherError = "[02:00:00] [Server thread/ERROR]: [OtherPlugin] Optional service failed`njava.lang.IllegalStateException: test-only`n`t at other.plugin.Startup.run(Startup.java:1)`n"
+    $otherStatus = Get-StartupLogStatus ($otherError + $validLog) @('OtherPlugin')
+    Assert-True $otherStatus.Ready 'Bilinen ilgisiz plugin stack trace hatası hedef pluginlerin başarısını bozmamalı.'
+    Assert-True ($otherStatus.OtherPluginErrorCount -eq 1 -and $otherStatus.FatalReasons.Count -eq 0) 'İlgisiz hata uyarı olarak sayılmalı.'
+    Assert-True (Test-StartupLog ($validLog + "`n[Server thread/ERROR]: [OtherPlugin] Could not enable Citizens integration`n at com.l299l.npcspeak.SomeClass.run(Test.java:1)") @('OtherPlugin')) 'İlgisiz pluginin entegrasyon/stack trace içindeki hedef adı hedef hatası sayılmamalı.'
+    Assert-True (Test-StartupLog ($otherError.Replace('Optional service failed','Failed to start server for an optional HTTP service') + $validLog) @('OtherPlugin')) 'İlgisiz pluginin kendi HTTP sunucusu hatası Minecraft çökmesi sayılmamalı.'
+    Assert-True (Test-StartupLog ("[Server thread/ERROR]: Error occurred while enabling OtherPlugin v1.0`njava.lang.RuntimeException: test`n" + $validLog)) 'Bukkit tarafından açıkça başka plugine atfedilen etkinleşme hatası engellememeli.'
+    Assert-True (Test-StartupLog ($validLog + "`n[Server thread/INFO]: Previous Exception count: 0")) 'Bilgilendirme metnindeki Exception sözcüğü hata olmamalı.'
+    Assert-True (Test-StartupLog ($validLog + "`n[Async Chat Thread - #0/INFO]: <TestPlayer> OutOfMemoryError [NPCSpeak] ERROR")) 'Oyuncu metni sağlık sinyali sayılmamalı.'
+    Assert-True (!(Test-StartupLog ($validLog + "`n[NPCSpeak] Enabling NPCSpeak v1.0`njava.lang.IllegalStateException: enable failure"))) 'Hedef pluginin stack trace hatası reddedilmeli.'
+    Assert-True (!(Test-StartupLog ($validLog + "`n[Server thread/ERROR]: [Citizens] Failed to initialize registry"))) 'Citizens hatası reddedilmeli.'
+    Assert-True (!(Test-StartupLog ($validLog + "`n[Server thread/INFO]: [Citizens] Disabling Citizens v2"))) 'Citizens kapanmışsa başarı kabul edilmemeli.'
+    Assert-True (!(Test-StartupLog ($validLog + "`n[Server thread/ERROR]: Error occurred while enabling NPCSpeak v1.0"))) 'Bukkit NPCSpeak etkinleşme hatası reddedilmeli.'
+    Assert-True (!(Test-StartupLog ($validLog + "`n[Server thread/ERROR]: Could not pass event TestEvent to Citizens v2"))) 'Bukkit Citizens olay hatası reddedilmeli.'
+    Assert-True (!(Test-StartupLog ($validLog + "`n[Server thread/ERROR]: [PluginInitializerManager] Could not load plugins/Superseed-NPCSpeak.jar"))) 'Hedef JAR yükleme hatası platform logger altında da reddedilmeli.'
+    Assert-True (!(Test-StartupLog ($otherError.Replace('java.lang.IllegalStateException','java.lang.OutOfMemoryError') + $validLog) @('OtherPlugin'))) 'Başka plugin tetiklese de JVM bellek hatası kritik olmalı.'
+    Assert-True (!(Test-StartupLog ($validLog + "`n[Server thread/ERROR]: [OtherPlugin] No space left on device") @('OtherPlugin'))) 'Disk dolması başka plugin altında da kritik olmalı.'
+    foreach ($criticalMessage in @('**** FAILED TO BIND TO PORT!', 'Failed to start the minecraft server', 'Encountered an unexpected exception', 'Exception in server tick loop', 'The server has stopped responding!', 'Failed to check session lock')) {
+        Assert-True (!(Test-StartupLog ($validLog + "`n[Server thread/ERROR]: $criticalMessage"))) "Kritik sunucu hatası reddedilmeli: $criticalMessage"
+    }
+    Assert-True (!(Test-StartupLog ($validLog + "`n[Server thread/INFO]: Stopping server"))) 'Done sonrasındaki güvenli kapanış başarı sayılmamalı.'
+    Assert-True (!(Test-StartupLog ($validLog + "`n[Server thread/ERROR]: [ChunkTaskScheduler] Unknown chunk failure") @('OtherPlugin'))) 'Bilinmeyen Paper logger bir plugin varsayılarak geçilmemeli.'
+    Assert-True (!(Test-StartupLog ($validLog + "`n[Server thread/FATAL]: Unrecoverable failure"))) 'FATAL sunucu hatası reddedilmeli.'
+    Assert-True (!(Test-StartupLog "[NPCSpeak] Enabling NPCSpeak v1.0`nDone (1.0s)!")) 'Eksik Citizens etkinleşmesi kabul edilmemeli.'
+    Assert-True (!(Test-StartupLog "Done (1.0s)!`n[NPCSpeak] Enabling NPCSpeak v1.0`n[Citizens] Enabling Citizens v2")) 'Done hedef pluginlerden önceyse başarı sayılmamalı.'
+
     # No listeners/processes/real RCON are used below. Mocks record lifecycle order.
     $server = Join-Path $testRoot 'server'
     $plugins = Join-Path $server 'plugins'
@@ -84,13 +130,23 @@ try {
     $script:failReady = $false
     $script:wildcard = $false
     function Invoke-ProjectBuild { param($Jdk); $script:events.Add('build'); if ($script:failBuild) { throw 'build failed' }; return $candidate }
-    function Get-ServerIdentity { param($Properties, $BatText); return [pscustomobject]@{Java='java.exe'; Wildcard=$script:wildcard; Process=[pscustomobject]@{Id=1}} }
+    function Get-ServerIdentity { param($Properties, $BatText); return [pscustomobject]@{Java='java.exe'; Wildcard=$script:wildcard; Process=[pscustomobject]@{Id=1;StartTime=Get-Date}} }
     function Open-Rcon { param($Properties); return [IO.MemoryStream]::new() }
     function Stop-ServerSafely { param($Identity,$Properties,$Timeout); $script:events.Add('stop'); if ($script:failStop) { throw 'stop timeout' } }
     function Assert-PortsClosed { param($Properties); $script:events.Add('ports-closed') }
     function Get-NetTCPConnection { param($State,$LocalPort,$ErrorAction); return @() }
     function Get-CimInstance { param($ClassName,$Filter); return @() }
     function Start-ServerBat { param($Root,$Bat,$Java); $script:events.Add('start') }
+    # Exercise the actual polling path before replacing it with the lifecycle mock.
+    $logRoot = Join-Path $testRoot 'log-fixture'
+    $null = New-Item -ItemType Directory -Path (Join-Path $logRoot 'logs')
+    $since = [datetime]::UtcNow.AddSeconds(-1)
+    [IO.File]::WriteAllText((Join-Path $logRoot 'logs\latest.log'), $otherError + $validLog)
+    $ready = Wait-ServerReady $logRoot @{} '' $since 1 '' @('OtherPlugin') -WarningVariable healthWarnings -WarningAction SilentlyContinue
+    Assert-True ($ready.Process.Id -eq 1) 'Gerçek bekleme döngüsü ilgisiz plugin hatasına rağmen başarı döndürmeli.'
+    Assert-True (@($healthWarnings).Count -eq 1) 'Gerçek bekleme döngüsü ilgisiz hataları uyarı olarak bildirmeli.'
+    [IO.File]::WriteAllText((Join-Path $logRoot 'logs\latest.log'), $validLog + "`n[Server/ERROR]: Failed to start the minecraft server")
+    Assert-Throws { Wait-ServerReady $logRoot @{} '' $since 1 '' } 'Gerçek bekleme döngüsü kritik hatada hemen durmalı.'
     function Wait-ServerReady {
         param($Root,$Properties,$BatText,$Since,$Timeout,$OldHeader)
         $script:events.Add('ready')
@@ -98,6 +154,10 @@ try {
         return [pscustomobject]@{Process=[pscustomobject]@{Id=2}}
     }
     $Mode = 'Deploy'; $ServerRoot = $server; $StartBat = 'START.bat'; $ApproveDeployment = $true
+    $Mode = 'Build'; $ServerRoot = ''; $LocalSettingsPath = $missingSettings
+    Invoke-Deployment
+    Assert-True (($script:events -join ',') -eq 'build') 'Build modu sunucu yolu veya yerel ayar gerektirmemeli.'
+    $Mode = 'Deploy'; $ServerRoot = $server; $script:events.Clear()
     Invoke-Deployment -WhatIf
     Assert-True (($script:events -join ',') -eq 'build') 'WhatIf sunucu komutu göndermemeli.'
     Assert-True (!(Test-Path -LiteralPath (Join-Path $server 'deployment-backups'))) 'WhatIf sunucuya yazmamalı.'
