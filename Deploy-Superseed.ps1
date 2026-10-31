@@ -3,7 +3,7 @@
 param(
     [ValidateSet('Inspect', 'Build', 'Deploy')][string]$Mode = 'Inspect',
     [string]$ServerRoot = '',
-    [string]$LocalSettingsPath = (Join-Path $PSScriptRoot 'Deploy-Superseed.local.json'),
+    [string]$LocalSettingsPath = '',
     [string]$StartBat = 'START.bat',
     [string]$JavaHome = '',
     [switch]$ApproveDeployment,
@@ -15,6 +15,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $RepoRoot = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($LocalSettingsPath)) {
+    # Windows PowerShell 5.1 may not initialize PSScriptRoot while binding parameter defaults.
+    $LocalSettingsPath = Join-Path $RepoRoot 'Deploy-Superseed.local.json'
+}
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 function Resolve-DeploymentServerRoot([string]$ExplicitRoot, [string]$SettingsPath) {
@@ -204,6 +208,7 @@ function Invoke-ProjectBuild([string]$Jdk) {
             & (Join-Path $RepoRoot 'gradlew.bat') clean build --console=plain | ForEach-Object { Write-Host $_ }
             if ($LASTEXITCODE -ne 0) { throw "Gradle başarısız (çıkış $LASTEXITCODE). Sunucuya dokunulmadı." }
             & (Join-Path $RepoRoot 'tests\Test-Deployment.ps1')
+            & (Join-Path $RepoRoot 'tests\Test-LoreSnapshot.ps1')
         } finally { Pop-Location }
         $outputs = @(Get-ChildItem -LiteralPath (Join-Path $RepoRoot 'build\libs') -Filter '*.jar' |
             Where-Object { $_.Extension -ieq '.jar' -and (Get-PluginName $_.FullName) -eq 'NPCSpeak' })

@@ -112,8 +112,11 @@ public final class KnowledgeBase {
                         stringList(fact.get("subjects")), stringList(fact.get("keywords")), !Boolean.FALSE.equals(fact.get("current"))));
             }
         }
+        return new LoreEngine(settings, readArticles(root.resolve("knowledge/wiki")), aliases, facts, personas);
+    }
+
+    static List<LoreEngine.Article> readArticles(Path wiki) throws IOException {
         List<LoreEngine.Article> articles = new ArrayList<>();
-        Path wiki = root.resolve("knowledge/wiki");
         if (Files.exists(wiki)) try (var files = Files.list(wiki)) {
             for (Path file : files.filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".txt")).sorted().toList()) {
                 if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.size(file) > 160_000) {
@@ -137,7 +140,7 @@ public final class KnowledgeBase {
                 if (!text.isBlank()) articles.add(new LoreEngine.Article(title, source, text));
             }
         }
-        return new LoreEngine(settings, articles, aliases, facts, personas);
+        return List.copyOf(articles);
     }
 
     private static List<String> stringList(Object value) {

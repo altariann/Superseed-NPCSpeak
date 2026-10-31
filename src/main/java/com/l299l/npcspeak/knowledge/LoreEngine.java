@@ -11,6 +11,8 @@ public final class LoreEngine {
     private static final Gson JSON = new Gson();
     private static final Pattern MARKS = Pattern.compile("\\p{M}+");
     private static final Pattern APOSTROPHE_SUFFIX = Pattern.compile("(?<=[\\p{L}0-9])['’][\\p{L}]+");
+    private static final Pattern REDIRECT = Pattern.compile("(?iu)^\\s*(?:#(?:redirect|yönlendirme)\\s+|şuraya yönlendir:\\s*)(?:\\[\\[)?([^\\r\\n]+?)(?:\\]\\])?\\s*$");
+    private static final Pattern NAMED_QUOTE = Pattern.compile("[\"“]([^\"”\\r\\n]{2,120})[\"”]\\s+(?:adli|isimli)\\b");
     private static final Set<String> STOP = Set.of("ve", "veya", "ile", "bir", "bu", "su", "o", "ne", "nedir",
             "kim", "kimdir", "kime", "hangi", "nasil", "niye", "neden", "nerede", "var", "mi", "mu", "ben", "sen",
             "biz", "siz", "de", "da", "ki", "icin", "hakkinda", "biraz", "bana", "soyle", "anlat", "misin", "musun",
@@ -38,11 +40,11 @@ public final class LoreEngine {
     public record VerifiedFact(String id, String text, List<String> subjects, List<String> keywords, boolean current) {
         public VerifiedFact { subjects = List.copyOf(subjects); keywords = List.copyOf(keywords); }
     }
-    private record Passage(String key, String title, String source, String text, Set<String> terms, int number) {}
+    private record Passage(String key, String title, String source, String text, Set<String> terms, int number, String via) {}
     private record Name(String key, String label, List<String> words, boolean alias) {}
     private record Hit(String key, String label, int start, int end, boolean alias, boolean literal) {}
     public record Candidate(String title, String source, int passage, double score, double coverage,
-                            List<String> reasons, boolean selected, String passedExcerpt) {
+                            List<String> reasons, boolean selected, String passedExcerpt, String viaWikiRedirect) {
         public Candidate { reasons = List.copyOf(reasons); }
     }
     public record Result(String status, String sourceData, List<Candidate> candidates, List<String> entities,
@@ -58,6 +60,7 @@ public final class LoreEngine {
     private final List<VerifiedFact> facts;
     private final Map<String, String> personas;
     private final Map<String, Set<String>> articleTerms;
+    private final List<Article> articles;
 
     public LoreEngine(Settings settings, List<Article> articles, List<Alias> aliases,
                       List<VerifiedFact> facts, Map<String, String> personas) {
@@ -81,6 +84,7 @@ public final class LoreEngine {
         Map<String, Set<String>> termsByArticle = new TreeMap<>();
         List<Article> ordered = articles.stream().sorted(Comparator.comparing(Article::title)
                 .thenComparing(Article::source).thenComparing(Article::text)).toList();
+        this.articles = List.copyOf(ordered);
         for (Article article : ordered) {
             String titleKey = normalize(article.title());
             String key = owners.getOrDefault(titleKey, titleKey);
@@ -90,8 +94,30 @@ public final class LoreEngine {
                     - source("WIKI_POSSIBLY_HISTORICAL", article.title(), article.source(), "").length() - 32));
             for (String chunk : chunks(article.text(), chunkBudget)) {
                 Set<String> terms = terms(chunk);
-                indexed.add(new Passage(key, article.title(), article.source(), chunk, terms, ++number));
+                indexed.add(new Passage(key, article.title(), article.source(), chunk, terms, ++number, ""));
                 termsByArticle.computeIfAbsent(titleKey, unused -> new TreeSet<>()).addAll(terms);
+            }
+        }
+        // Follow explicit local wiki references, not inferred identity. Never create admin aliases.
+        List<Passage> originals = List.copyOf(indexed);
+        for (Article origin : ordered) {
+            Set<Article> visited = new HashSet<>(); visited.add(origin);
+            Article current = origin;
+            for (int hop = 0; hop < 3; hop++) {
+                Optional<String> target = redirectTarget(current.text());
+                if (target.isEmpty()) break;
+                List<Article> literal = ordered.stream().filter(article -> article.title().equals(target.get())).toList();
+                List<Article> matches = literal.isEmpty() ? ordered.stream()
+                        .filter(article -> normalize(article.title()).equals(normalize(target.get()))).toList() : literal;
+                if (matches.size() != 1 || !visited.add(matches.get(0))) break;
+                current = matches.get(0);
+                if (redirectTarget(current.text()).isPresent()) continue;
+                String originKey = owners.getOrDefault(normalize(origin.title()), normalize(origin.title()));
+                Article resolved = current;
+                originals.stream().filter(passage -> passage.title().equals(resolved.title()) && passage.source().equals(resolved.source()))
+                        .forEach(passage -> indexed.add(new Passage(originKey, passage.title(), passage.source(), passage.text(),
+                                passage.terms(), passage.number(), origin.title())));
+                break;
             }
         }
         this.names = List.copyOf(indexedNames);
@@ -100,18 +126,39 @@ public final class LoreEngine {
     }
 
     public Settings settings() { return settings; }
+    List<Article> articles() { return articles; }
+    List<Alias> aliases() { return aliases; }
+    LoreEngine reindex(List<Article> reordered) { return new LoreEngine(settings, reordered, aliases, facts, personas); }
+    Map<String, Long> indexedPassageCounts() {
+        Map<String, Long> counts = new TreeMap<>();
+        passages.forEach(passage -> counts.merge(passage.title(), 1L, Long::sum));
+        return Map.copyOf(counts);
+    }
     public String persona(String id) { return settings.enabled() ? personas.getOrDefault(id, "") : ""; }
 
     public Result retrieve(String question) {
         if (!settings.enabled()) return empty("DISABLED");
         // Bound work on administrator commands as well as player queries.
-        List<String> queryWords = words(question == null ? "" : question.substring(0, Math.min(1200, question.length())));
+        String bounded = question == null ? "" : question.substring(0, Math.min(1200, question.length()));
+        var quoted = NAMED_QUOTE.matcher(normalize(bounded));
+        while (quoted.find()) {
+            List<String> named = words(quoted.group(1));
+            boolean known = names.stream().anyMatch(name -> name.words().equals(named))
+                    || facts.stream().anyMatch(fact -> fact.subjects().stream().anyMatch(subject -> words(subject).equals(named))
+                            || !positions(words(fact.text()), named).isEmpty());
+            // An explicit unknown name cannot be replaced by a known prefix or incidental body words.
+            if (!known) return empty("UNRESOLVED_NAMED_ENTITY");
+        }
+        List<String> queryWords = words(bounded);
         Set<String> query = new TreeSet<>(queryWords);
         query.removeAll(STOP);
         if (query.isEmpty()) return empty("EMPTY_QUERY");
         List<Hit> hits = new ArrayList<>();
         for (Name name : names) {
-            if (!distinctiveName(name.words())) continue;
+            // A common word alone can name its own explicitly indexed article, but cannot
+            // act as a broad anchor inside another topic or imply a longer entity name.
+            boolean soleLiteralTopic = query.equals(new TreeSet<>(name.words()));
+            if (!distinctiveName(name.words()) && !soleLiteralTopic) continue;
             for (int start : positions(queryWords, name.words())) {
                 int end = start + name.words().size();
                 hits.add(new Hit(name.key(), name.label(), start, end, name.alias(), queryWords.subList(start, end).equals(name.words())));
@@ -132,6 +179,11 @@ public final class LoreEngine {
         entities.removeAll(ambiguous);
         Set<String> informative = new TreeSet<>(query);
         informative.removeIf(word -> GENERIC.stream().anyMatch(generic -> sameTerm(word, generic)));
+        // The entity bonus already establishes the subject. Rank its passages by the asked detail,
+        // not by repeated occurrences of the subject's name in unrelated later paragraphs.
+        for (Hit hit : longest) if (entities.contains(hit.key())) {
+            informative.removeAll(queryWords.subList(hit.start(), hit.end()));
+        }
 
         Map<String, Double> weights = new TreeMap<>();
         Set<String> rareTerms = new HashSet<>();
@@ -151,6 +203,9 @@ public final class LoreEngine {
             if (direct) {
                 score += 100;
                 reasons.add(longest.stream().anyMatch(hit -> hit.key().equals(passage.key()) && hit.alias()) ? "VERIFIED_ALIAS" : "EXACT_TITLE");
+                if (!passage.via().isBlank()) reasons.add("WIKI_REDIRECT");
+            } else if (!passage.via().isBlank()) {
+                reasons.add("REJECT_REDIRECT_WITHOUT_ORIGIN_MATCH");
             } else if (!longest.isEmpty()) {
                 reasons.add(entities.isEmpty() ? "REJECT_AMBIGUOUS_ENTITY" : "REJECT_OTHER_ENTITY");
             } else {
@@ -164,7 +219,7 @@ public final class LoreEngine {
             reasons.add(String.format(Locale.ROOT, "BODY_SCORE=%.2f", direct ? score - 100 : score));
             if (direct) reasons.add("ENTITY_BONUS=100");
             if (score < settings.minScore()) reasons.add("REJECT_LOW_SCORE");
-            ranked.add(new Candidate(passage.title(), passage.source(), passage.number(), score, coverage, reasons, false, passage.text()));
+            ranked.add(new Candidate(passage.title(), passage.source(), passage.number(), score, coverage, reasons, false, passage.text(), passage.via()));
         }
         ranked.sort(Comparator.comparingDouble(Candidate::score).reversed().thenComparing(Candidate::title)
                 .thenComparing(Candidate::source).thenComparingInt(Candidate::passage));
@@ -189,21 +244,25 @@ public final class LoreEngine {
         int wikiCount = 0;
         List<Candidate> trace = new ArrayList<>();
         Map<String, Integer> perArticle = new HashMap<>();
+        Set<String> includedPassages = new HashSet<>();
         for (Candidate candidate : ranked) {
             List<String> reasons = new ArrayList<>(candidate.reasons());
             boolean eligible = reasons.stream().noneMatch(reason -> reason.startsWith("REJECT_"));
             boolean selected = false;
-            if (eligible && wikiCount >= settings.maxSnippets()) reasons.add("OMIT_SNIPPET_LIMIT");
+            String identity = candidate.title() + "\u0000" + candidate.source() + "\u0000" + candidate.passedExcerpt();
+            if (eligible && includedPassages.contains(identity)) reasons.add("OMIT_DUPLICATE_PASSAGE");
+            else if (eligible && wikiCount >= settings.maxSnippets()) reasons.add("OMIT_SNIPPET_LIMIT");
             else if (eligible && perArticle.getOrDefault(candidate.title(), 0) >= 2) reasons.add("OMIT_ARTICLE_LIMIT");
             else if (eligible) {
-                selected = append(data, source("WIKI_POSSIBLY_HISTORICAL", candidate.title(), candidate.source(), candidate.passedExcerpt()), settings.maxChars());
+                selected = append(data, source("WIKI_POSSIBLY_HISTORICAL", candidate.title(), candidate.source(), candidate.passedExcerpt(), candidate.viaWikiRedirect()), settings.maxChars());
                 if (selected) {
                     wikiCount++;
+                    includedPassages.add(identity);
                     perArticle.merge(candidate.title(), 1, Integer::sum);
                 } else reasons.add("OMIT_CONTEXT_BUDGET");
             }
             trace.add(new Candidate(candidate.title(), candidate.source(), candidate.passage(), candidate.score(),
-                    candidate.coverage(), reasons, selected, selected ? candidate.passedExcerpt() : ""));
+                    candidate.coverage(), reasons, selected, selected ? candidate.passedExcerpt() : "", candidate.viaWikiRedirect()));
         }
         String status = verifiedCount + wikiCount > 0 ? "MATCHED" :
                 ranked.stream().anyMatch(candidate -> candidate.reasons().stream().noneMatch(reason -> reason.startsWith("REJECT_")))
@@ -218,8 +277,12 @@ public final class LoreEngine {
         return true;
     }
     private static String source(String kind, String title, String origin, String text) {
+        return source(kind, title, origin, text, "");
+    }
+    private static String source(String kind, String title, String origin, String text, String via) {
         Map<String, String> object = new LinkedHashMap<>();
         object.put("kind", kind); object.put("title", title); object.put("source", origin); object.put("text", text);
+        if (!via.isBlank()) object.put("viaWikiRedirect", via);
         return JSON.toJson(object) + "\n";
     }
     private static List<String> aliasLabels(Alias alias) {
@@ -273,7 +336,10 @@ public final class LoreEngine {
         List<String> chunks = new ArrayList<>();
         // Prefer complete sentences/paragraphs. Never pass half a factual sentence.
         StringBuilder current = new StringBuilder();
-        for (String sentence : text.strip().split("(?<=[.!?])\\s+|\\R\\s*\\R")) {
+        // Extracted infobox fields are complete key=value units. Keep them addressable instead
+        // of dropping an entire oversized infobox as one unpunctuated sentence.
+        String structured = text.replaceAll("\\|(?=[\\p{L}_][\\p{L}_0-9 ]{0,70}\\s*=)", "\n\n");
+        for (String sentence : structured.strip().split("(?<=[.!?])\\s+|\\R\\s*\\R")) {
             String clean = sentence.strip();
             if (clean.isEmpty()) continue;
             if (current.length() + clean.length() + 1 > max && current.length() > 0) {
@@ -286,5 +352,12 @@ public final class LoreEngine {
         }
         if (current.length() > 0) chunks.add(current.toString());
         return chunks;
+    }
+
+    static Optional<String> redirectTarget(String text) {
+        var match = REDIRECT.matcher(text);
+        if (!match.matches()) return Optional.empty();
+        String target = match.group(1).split("#", 2)[0].strip();
+        return target.isBlank() ? Optional.empty() : Optional.of(target);
     }
 }

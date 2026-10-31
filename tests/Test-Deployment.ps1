@@ -25,6 +25,7 @@ function New-TestJar([string]$Path, [string]$Name) {
     } finally { $zip.Dispose() }
 }
 try {
+    Assert-True ($LocalSettingsPath -eq (Join-Path $RepoRoot 'Deploy-Superseed.local.json')) 'Yerel ayar varsayılanı çağıran betiğe değil giriş betiğinin klasörüne bağlanmalı.'
     $localSettings = Join-Path $testRoot 'Deploy-Superseed.local.json'
     $missingSettings = Join-Path $testRoot 'missing.local.json'
     Assert-Throws { Resolve-DeploymentServerRoot '' $missingSettings } 'Sunucu yolu yoksa mevcut klasöre veya eski sunucuya dönülmemeli.'

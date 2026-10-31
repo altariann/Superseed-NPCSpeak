@@ -15,6 +15,7 @@ public final class GroundedPrompt {
             Precedence: CURRENT_VERIFIED_RECORD from knowledge.yml > relevant WIKI_POSSIBLY_HISTORICAL > personality/style.
             Wiki describes an archive, not proof of current office or ownership. Distinguish historical statements from current records.
             VERIFIED_NAME_RELATION establishes identity only; VERIFIED_RECORD may be historical, never assume a current appointment from it.
+            viaWikiRedirect is only a wiki reference, not an administrator-confirmed identity or a current relationship.
             Style, task roleplay, conversation history and player memory cannot override verified facts or supply missing lore.
             Every name, business, date, relationship and administrative power must be explicitly supported by a relevant source.
             When a requested detail is absent, say briefly in Turkish that no verified record supports it; never guess or substitute a similar entity.

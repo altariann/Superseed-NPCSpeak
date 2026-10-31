@@ -37,6 +37,20 @@ tasks.test {
     useJUnitPlatform()
 }
 
+// Opt-in private evaluation. Normal build/test never reads a real archive or calls a model.
+tasks.register<JavaExec>("evaluateLore") {
+    group = "verification"
+    description = "Evaluate production lore code against explicitly supplied private data/cases (no AI)."
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.l299l.npcspeak.knowledge.LoreEvaluation")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    args("--mode", providers.gradleProperty("loreMode").getOrElse("run"),
+         "--data", providers.gradleProperty("loreData").getOrElse(""),
+         "--cases", providers.gradleProperty("loreCases").getOrElse(""),
+         "--output", providers.gradleProperty("loreOutput").getOrElse(""))
+}
+
 tasks {
     runServer {
         // Configure the Minecraft version for our task.
