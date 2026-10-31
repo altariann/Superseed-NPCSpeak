@@ -6,6 +6,105 @@
 
 ---
 # NPCSpeak
+
+### Superseed: Windows geliştirme ve güvenli dağıtım (ilk aşama)
+
+`Deploy-Superseed.ps1`, Windows PowerShell 5.1 ve üzeri için hazırlanmıştır.
+Varsayılan mod yalnızca okur; sunucuya RCON bağlantısı kurmaz, `stop` göndermez
+ve sunucu dosyalarını değiştirmez. BAT, Java komutu, port sahipliği ve mevcut
+NPCSpeak JAR kimliği denetlenir. İşlem bilgilerine erişilemiyorsa işlem durur.
+
+```powershell
+# Yalnızca inceleme (varsayılan sunucu klasörü ve START.bat)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1
+
+# Sunucuya erişmeden temiz derleme + Gradle testleri + çevrimdışı betik testleri
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1 -Mode Build -JavaHome "C:\Program Files\Eclipse Adoptium\jdk-26.0.2.101-hotspot"
+
+# Sadece betik testleri; geçici dosyalar ve taklit sunucu kullanılır
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Deployment.ps1
+```
+
+`ExecutionPolicy Bypass` yalnızca başlatılan PowerShell sürecine uygulanır;
+makinenin kalıcı yürütme ilkesi değiştirilmez. Projenin Gradle toolchain'i JDK 26,
+Java derleme hedefi 17'dir. `-JavaHome` Gradle JVM'ini seçer; sunucu yeniden
+başlatılırken kapanan sunucunun kullandığı Java korunur. İlk derleme Gradle ve
+Maven bağımlılıklarını indirmek için internet gerektirebilir. Java testleri
+eklenene kadar Gradle'ın `test NO-SOURCE` sonucu lore doğruluğu testi sayılmaz.
+
+**Canlı dağıtım yalnızca kullanıcı ilk dağıtımı onayladıktan sonra yapılmalıdır.**
+Aşağıdaki komutta `-ApproveDeployment` bu onayın verildiğini belirtir; betik ayrıca
+interaktif onay istemez. Bir Codex oturumu bu bayrağı kullanıcı onayı yerine
+kullanamaz. Sonraki dağıtımlar da onaylanmış betikle aynı komuttan yürütülebilir.
+
+RCON yalnızca `127.0.0.1` üzerinden kullanılır. RCON tüm arayüzlerde dinliyorsa,
+Windows Güvenlik Duvarı ve yönlendiricide RCON portuna dış erişimin engellendiği
+ayrıca doğrulanmalıdır. Bu durumda `-RconFirewallVerified` operatörün bu kontrolü
+yaptığını bildirir; bayrak güvenlik duvarını kontrol etmez veya değiştirmez.
+RCON şifresi yalnızca yerel `server.properties` dosyasından belleğe okunur;
+komut satırına veya çıktıya yazılmaz. Betik RCON'u etkinleştirmez, şifresini
+değiştirmez. Minecraft'ın oyun portunu kapatmayın. Java properties dosyasındaki
+çok satırlı veya ters eğik çizgiyle kaçış yapılmış RCON şifreleri desteklenmez;
+kimlik doğrulama başarısızsa sunucu kapatılmaz.
+
+Superseed operatörü RCON'un dışarıya kapalı olduğunu doğrulamıştır. Tüm
+arayüzlerde dinleme tek başına internetten erişim olduğu anlamına gelmez;
+mevcut ağ ayarlarını bu nedenle değiştirmek gerekmez. Aşağıdaki
+`-RconFirewallVerified` bu mevcut operatör doğrulamasını belirtir.
+
+```powershell
+# Prova: derler ve ön kontrolleri yapar; yedek/stop/JAR değişimi/başlatma yapmaz
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1 -Mode Deploy -ApproveDeployment -RconFirewallVerified -WhatIf
+
+# YALNIZCA ilk canlı dağıtım onaylandıktan ve RCON erişimi sınırlandıktan sonra
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1 -Mode Deploy -ApproveDeployment -RconFirewallVerified
+```
+
+`-ServerRoot`, `-StartBat`, `-JavaHome`, `-StopTimeoutSeconds` (180) ve
+`-StartTimeoutSeconds` (300) parametreleri kullanılabilir. Desteklenen BAT,
+incelenen tek satırlı `java ... io.papermc.paperclip.Main -nogui` biçimidir.
+BAT ve çalışan işlemin komutu eşleşmezse betik durur; `start.cmd`/AutoPlug
+kendiliğinden seçilmez. Mevcut BAT içeriği, JVM parametreleri ve Java sürümü korunur.
+Başka bir otomatik yeniden başlatıcı dağıtım sırasında devreye girmemelidir.
+
+Dağıtım sırası:
+
+1. `gradlew.bat clean build` ve çevrimdışı dağıtım testleri çalışır. Hata varsa
+   sunucuya hiçbir yazma veya RCON komutu gönderilmez.
+2. NPCSpeak kimliği `plugin.yml` üzerinden belirlenir. Sıfır veya birden fazla
+   NPCSpeak JAR varsa dağıtım reddedilir. Sunucudaki kilit dosyası aynı anda iki
+   dağıtım çalışmasını engeller.
+3. Mevcut JAR, seçilen BAT, `server.properties`, `plugins/NPCSpeak` ve
+   `plugins/Citizens` yerel `deployment-backups/<zaman>-<kimlik>/` altında yedeklenir.
+   Bu klasör özel yapılandırma, RCON/API şifreleri, wiki ve oyuncu konuşmaları
+   içerebilir; depoya eklemeyin veya paylaşmayın. Yeterli disk alanı bulundurun.
+4. Kimliği doğrulanmış localhost RCON bağlantısından `stop` gönderilir. Java
+   işleminin çıkması ve oyun/RCON portlarının kapanması beklenir. Zorla sonlandırma
+   yapılmaz. Ardından NPCSpeak ve Citizens verilerinin tutarlı ikinci yedeği alınır.
+5. Yeni JAR mevcut NPCSpeak JAR'ın **aynı dosya adına** yazılır ve SHA-256 ile
+   doğrulanır; ikinci NPCSpeak JAR bırakılmaz. Diğer pluginler, Citizens verileri,
+   NPC dosyaları, skin/ID/konum kayıtları, wiki, bilgi/mesaj dosyaları ve dünyalar
+   dağıtım betiği tarafından değiştirilmez. Paper kendi plugin önbelleğini yönetir.
+6. Aynı BAT gizli bir `cmd` sürecinde, aynı çalışma klasörü ve Java ile çalışır.
+   Yeni `logs/latest.log` içinde NPCSpeak/Citizens etkinleşmesi, Paper `Done`
+   satırı ve yeni süreç doğrulanır. Eski başlangıç satırları başarı sayılmaz.
+   Hata satırı varsa dağıtım başarısız bildirilir; oyuncu konuşmaları konsola basılmaz.
+
+Başlangıç hatasında yeni süreç güvenli RCON `stop` ile kapatılabiliyorsa önceki JAR
+geri yüklenir ve aynı BAT ile başlatılır. Sürecin kapandığı kanıtlanamıyorsa veya
+RCON çalışmıyorsa otomatik geri alma durur; zorla kapatma ve çalışan JAR'a yazma
+yapılmaz. Önceki JAR'la başlatma da doğrulanamazsa yedek yolu bildirilir.
+Dağıtım komutu geri alma başarılı olsa bile hata döndürür.
+Veri klasörleri otomatik geri sarılmaz: yeni plugin verileri dönüştürdüyse kapalı
+sunucuda yedekten elle geri yükleme gerekebilir. Dünya yedeği bu betiğin kapsamı
+dışındadır; mevcut dünya yedekleme düzenini koruyun.
+
+İlk onaylı denemede sunucuda giriş, NPC/Citizens ID'leri, skin/pozisyon, Türkçe
+sohbet, tek oyunculu konuşma kilidi, mesaj renkleri, yalnız oyuncuya görünen echo,
+yerel Ollama ve `/npcspeak reload` davranışını kontrol edin. Log kontrolü bu oyun
+içi kontrollerin yerini tutmaz. Bu ilk aşama lore algoritmasını değiştirmez;
+alıntı doğruluğu ve modelin kaynaklara bağlılığı sonraki geliştirme aşamasındadır.
+
 A Paper 1.20+ plugin that gives your NPCs real conversations, powered by a language model of your choice: a local Ollama install or any OpenAI-compatible API. Players walk up, right-click, and type. The NPC actually answers, in character, instead of cycling through three canned lines.
 
 That alone is a nice trick. What makes it worth building a server around is the **task system**: NPCs that aren't just chatty, but actually want something from the player, and only reward them once they've genuinely gotten it.

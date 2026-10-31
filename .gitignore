@@ -26,3 +26,14 @@ servers
 .gradle/
 build/
 src/main/resources/knowledge/wiki/*.txt
+
+# Local build cache and private deployment artifacts
+.gradle-user-home/
+.deploy.lock
+deployment-backups/
+*.local.ps1
+.local-safety/
+server.properties
+plugins/
+logs/
+*.log
