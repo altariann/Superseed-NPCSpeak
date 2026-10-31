@@ -17,6 +17,8 @@ import com.l299l.npcspeak.npc.CitizensNpcProvider;
 import com.l299l.npcspeak.npc.NPCSpeakTrait;
 import com.l299l.npcspeak.npc.NpcListener;
 import com.l299l.npcspeak.npc.NpcManager;
+import com.l299l.npcspeak.npc.NpcMessages;
+import com.l299l.npcspeak.knowledge.KnowledgeBase;
 import com.l299l.npcspeak.npc.NpcProvider;
 import com.l299l.npcspeak.memory.NpcMemoryManager;
 import com.l299l.npcspeak.papi.NpcSpeakExpansion;
@@ -35,6 +37,8 @@ public final class NPCSpeak extends JavaPlugin {
     @Override
     public void onEnable() {
         pluginConfig = new PluginConfig(this);
+        NpcMessages.initialize(this);
+        KnowledgeBase.initialize(this);
 
         AiBackend backend;
         try {
@@ -73,7 +77,17 @@ public final class NPCSpeak extends JavaPlugin {
 
         NpcProvider provider = createProvider();
         npcManager = new NpcManager(this, provider);
-        npcManager.loadAll();
+        if (provider instanceof CitizensNpcProvider) {
+            // Citizens reads saves.yml one tick AFTER plugin enable (CitizensLoadTask).
+            // Loading NPCSpeak NPCs immediately here creates duplicate Steve-skin NPCs.
+            getServer().getScheduler().runTaskLater(this, () -> {
+                if (!isEnabled()) return;
+                npcManager.loadAll();
+                getLogger().info("Loaded " + npcManager.count() + " NPC(s) after Citizens initialized its registry.");
+            }, 2L);
+        } else {
+            npcManager.loadAll();
+        }
 
         getServer().getPluginManager().registerEvents(new NpcListener(npcManager, conversationManager), this);
         getServer().getPluginManager().registerEvents(new ConversationListener(conversationManager), this);

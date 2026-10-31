@@ -65,6 +65,8 @@ public class NpcData {
             config.setAvoid(yaml.getString("personality.avoid"));
             if (yaml.isSet("personality.memory-enabled"))
                 config.setMemoryEnabled(yaml.getBoolean("personality.memory-enabled"));
+            if (yaml.isSet("personality.single-player"))
+                config.setSinglePlayer(yaml.getBoolean("personality.single-player"));
             config.setMaxInteractions(yaml.getInt("personality.max-interactions", -1));
             config.setLockAfterTask(yaml.getBoolean("personality.lock-after-task", false));
             config.setLogConversations(yaml.getBoolean("personality.log-conversations", false));
@@ -108,6 +110,7 @@ public class NpcData {
             yaml.set("personality.topic", config.getTopic() != null ? config.getTopic() : "");
             yaml.set("personality.avoid", config.getAvoid() != null ? config.getAvoid() : "");
             yaml.set("personality.memory-enabled", config.getMemoryEnabled());
+            yaml.set("personality.single-player", config.getSinglePlayer());
             yaml.set("personality.max-interactions", config.getMaxInteractions());
             yaml.set("personality.lock-after-task", config.isLockAfterTask());
             if (config.isLogConversations()) yaml.set("personality.log-conversations", true);

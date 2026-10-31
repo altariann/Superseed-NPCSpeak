@@ -1,0 +1,41 @@
+# Superseed NPCSpeak | Özelleştirilebilir konuşma mesajları
+#
+# Değişiklikleri oyunda uygulamak için: /npcspeak reload
+# Bu komut Superseed v2+ yamalı sürümde Citizens NPC'sini silmez.
+#
+# Renk kodları: &0..&9, &a..&f, &l (kalın), &o (italik), &n (altı çizili), &r (sıfırla)
+# RGB: &#FFAA00 gibi altı haneli HEX renkler
+# Değişkenler: {npc} (NPC'nin görünen adı), {seconds}, {backend}, {outcome}
+# YAML metinlerini tek tırnak içinde tutun. (&, #, :, Türkçe karakterler güvenle çalışır.)
+# Bu dosya TÜM NPC'lerin ortak sistem mesajlarını kontrol eder.
+# Her NPC'nin kişiliği ve karşılama metni ayrı NPC YAML'sinden gelir.
+
+prefix: '&6[&e{npc}&6] &f'
+# Only the speaking player sees this heading. {npc} and {player} are supported.
+player-echo-prefix: '&b[Sen → {npc}] &f'
+
+typing: '&7✏ Düşünüyorum...'
+pending: '&7Bir dakika, henüz yanıtımı hazırlıyorum.'
+cooldown: '&eTekrar konuşmadan önce &6{seconds} saniye &ebekleyin.'
+greeting-hint: '&8(Konuşmak için chate yazın, ayrılmak için tekrar sağ tıklayın.)'
+
+# Makamdaki NPC başka bir oyuncuyla görüşürken:
+busy: '&eŞu anda başka bir vatandaşla görüşüyorum. Lütfen sıranızı bekleyin.'
+
+# Oyuncu NPC'ye yeniden sağ tıklayıp görüşmeyi bitirdiğinde:
+farewell: '&6Görüşmemiz sona erdi. &fİyi günler.'
+
+# Yanıt bekleme süresi dolduğunda:
+timeout: '&7Görüşme süreniz doldu. Yeniden uğrayabilirsiniz.'
+
+# Görev / pazarlık sisteminin arayüz mesajları:
+task-success: '&a[ Görev tamamlandı ]'
+task-success-with-outcome: '&a[ Görev tamamlandı: &f{outcome}&a ]'
+task-failed: '&c[ Görev başarısız ]'
+accept-button: '&a[✓ Kabul et]'
+accept-hover: '&aTeklifi kabul et'
+decline-button: '&c[✗ Reddet]'
+decline-hover: '&cTeklifi reddet'
+requirements-failed: '&cGerekli eşya veya paraya sahip değilsiniz.'
+interaction-blocked: '&7Sizinle şu anda daha fazla görüşemiyorum.'
+error: '&cŞu anda yanıt veremiyorum. &8({backend} bağlantısı kurulamadı)'

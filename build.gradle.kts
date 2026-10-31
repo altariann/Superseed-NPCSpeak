@@ -38,6 +38,8 @@ tasks {
     }
 
     processResources {
+        // Local backup files and the private wiki must never enter a published JAR.
+        exclude("**/*.bak", "knowledge/wiki/**")
         val props = mapOf("version" to version)
         filesMatching("plugin.yml") {
             expand(props)

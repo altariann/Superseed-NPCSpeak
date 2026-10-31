@@ -10,6 +10,7 @@ public class NpcConfig {
     private String avoid;
     private NpcTaskConfig task;
     private Boolean memoryEnabled;
+    private Boolean singlePlayer;
     private int maxInteractions = -1;
     private boolean lockAfterTask = false;
     private boolean logConversations = false;
@@ -82,6 +83,10 @@ public class NpcConfig {
         return (greeting != null && !greeting.isBlank()) ? greeting : DEFAULT_GREETING;
     }
 
+    public boolean isSinglePlayerFor(boolean globalEnabled) {
+        return singlePlayer != null ? singlePlayer : globalEnabled;
+    }
+
     public boolean isMemoryEnabledFor(boolean globalEnabled) {
         return memoryEnabled != null ? memoryEnabled : globalEnabled;
     }
@@ -92,6 +97,7 @@ public class NpcConfig {
     public String getAvoid() { return avoid; }
     public NpcTaskConfig getTask() { return task; }
     public Boolean getMemoryEnabled() { return memoryEnabled; }
+    public Boolean getSinglePlayer() { return singlePlayer; }
     public int getMaxInteractions() { return maxInteractions; }
     public boolean isLockAfterTask() { return lockAfterTask; }
     public boolean isLogConversations() { return logConversations; }
@@ -102,6 +108,7 @@ public class NpcConfig {
     public void setAvoid(String avoid) { this.avoid = avoid; }
     public void setTask(NpcTaskConfig task) { this.task = task; }
     public void setMemoryEnabled(Boolean memoryEnabled) { this.memoryEnabled = memoryEnabled; }
+    public void setSinglePlayer(Boolean singlePlayer) { this.singlePlayer = singlePlayer; }
     public void setMaxInteractions(int maxInteractions) { this.maxInteractions = maxInteractions; }
     public void setLockAfterTask(boolean lockAfterTask) { this.lockAfterTask = lockAfterTask; }
     public void setLogConversations(boolean logConversations) { this.logConversations = logConversations; }
