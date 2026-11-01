@@ -76,6 +76,7 @@ function New-Fixture {
     $script:ExpectedPlanSha256 = $fixture.PlanHash
     $script:events.Clear(); $script:readyMarkers.Clear()
     $script:onStop = $null; $script:onReady = $null; $script:failWritesAt = @(); $script:writeCount = 0
+    $script:failPortChecksAt = @(); $script:portChecks = 0
     $script:listeners = @(); $script:wildcard = $false; $script:current = $fixture
     return $fixture
 }
@@ -100,7 +101,7 @@ try {
     function Get-ServerIdentity { param($Properties, $BatText); return [pscustomobject]@{Java='java.exe'; Wildcard=$script:wildcard; Process=[pscustomobject]@{Id=1;StartTime=Get-Date}} }
     function Open-Rcon { param($Properties); $script:events.Add('rcon-probe'); return [IO.MemoryStream]::new() }
     function Stop-ServerSafely { param($Identity,$Properties,$Timeout); $script:events.Add('stop'); if ($script:onStop) { & $script:onStop } }
-    function Assert-PortsClosed { param($Properties); $script:events.Add('ports-closed') }
+    function Assert-PortsClosed { param($Properties); $script:events.Add('ports-closed'); $script:portChecks++; if ($script:portChecks -in $script:failPortChecksAt) { throw 'Paper process exists' } }
     function Get-NetTCPConnection { param($State,$LocalPort,$ErrorAction); return @($script:listeners) }
     function Start-ServerBat { param($Root,$Bat,$Java); $script:events.Add('start') }
     function Wait-ServerReady {
@@ -221,7 +222,7 @@ try {
     $f = New-Fixture
     Invoke-Hybrid $f
     Assert-True (Test-State $f $f.NewHashes) 'Başarıda üç dosya da yeni hash ile kurulmalı.'
-    Assert-True (($script:events -join ',') -ceq 'rcon-probe,stop,ports-closed,start,ready') 'Güvenli işlem sırası korunmalı.'
+    Assert-True (($script:events -join ',') -ceq 'rcon-probe,stop,ports-closed,ports-closed,ports-closed,start,ready') 'Güvenli işlem sırası korunmalı.'
     Assert-True ($script:readyMarkers[0] -ceq $marker) 'Yeni açılış beklenen kanıtla doğrulanmalı.'
     Assert-True ((Get-Phase $f) -ceq 'READY') 'Başarı günlüğü READY olmalı.'
     foreach ($kind in @('Jar','Npc','Knowledge')) {
@@ -257,6 +258,32 @@ try {
     try { [IO.File]::Open($f.Targets.Jar, 'Open', 'ReadWrite', 'None').Dispose() } catch { $released = $false }
     Assert-True $released 'Başarısız kilit girişimi önceki hedefleri serbest bırakmalı.'
 
+    # An unexpected Paper process (restart-on-crash) halts everything without touching it.
+    $unexpected = @([pscustomobject]@{LocalPort=25565})
+    $f = New-Fixture; $script:listeners = $unexpected; $script:failPortChecksAt = @(1)
+    Assert-Throws { Invoke-Hybrid $f } 'Kapanıştan hemen sonra görülen Paper dağıtımı durdurmalı.'
+    Assert-True (Test-State $f $f.OldHashes) 'Beklenmedik Paper varken dosya yazılmamalı.'
+    Assert-True ((Get-EventCount 'stop') -eq 1 -and (Get-EventCount 'start') -eq 0) 'Beklenmedik Paper sürecine stop gönderilmemeli, ikinci sunucu açılmamalı.'
+    Assert-True ((Get-Phase $f) -ceq 'RECOVERY_BLOCKED') 'Beklenmedik Paper RECOVERY_BLOCKED kaydedilmeli.'
+    $f = New-Fixture; $script:listeners = $unexpected; $script:failPortChecksAt = @(2)
+    Assert-Throws { Invoke-Hybrid $f } 'Yazımdan hemen önce görülen Paper dağıtımı durdurmalı.'
+    Assert-True (Test-State $f $f.OldHashes -and $script:writeCount -eq 0) 'Kilit sonrası beklenmedik Paper varken ilk dosya bile yazılmamalı.'
+    Assert-True ((Get-EventCount 'stop') -eq 1 -and (Get-EventCount 'start') -eq 0) 'Yazım öncesi beklenmedik Paper sürecine dokunulmamalı.'
+    Assert-True ((Get-Phase $f) -ceq 'RECOVERY_BLOCKED') 'Yazım öncesi durma RECOVERY_BLOCKED kaydedilmeli.'
+    $f = New-Fixture; $script:listeners = $unexpected; $script:failPortChecksAt = @(3)
+    Assert-Throws { Invoke-Hybrid $f } 'Başlatmadan hemen önce görülen Paper dağıtımı durdurmalı.'
+    Assert-True (Test-State $f $f.NewHashes) 'Beklenmedik Paper varken geri yazım yapılmamalı.'
+    Assert-True ((Get-EventCount 'stop') -eq 1 -and (Get-EventCount 'start') -eq 0) 'Başlatma öncesi beklenmedik Paper sürecine dokunulmamalı.'
+    Assert-True ((Get-Phase $f) -ceq 'RECOVERY_BLOCKED') 'Başlatma öncesi durma RECOVERY_BLOCKED kaydedilmeli.'
+    $f = New-Fixture; $script:failPortChecksAt = @(5); $script:onReady = { throw 'startup failed' }
+    Assert-Throws { Invoke-Hybrid $f } 'Geri alma sırasında görülen Paper işlemi durdurmalı.'
+    Assert-True (Test-State $f $f.NewHashes -and $script:writeCount -eq 3) 'Geri alma öncesi beklenmedik Paper varken dosya yazılmamalı.'
+    Assert-True ((Get-EventCount 'start') -eq 1 -and (Get-Phase $f) -ceq 'RECOVERY_BLOCKED') 'Geri alma durunca sunucu açılmamalı.'
+    $f = New-Fixture; $script:failPortChecksAt = @(6); $script:onReady = { throw 'startup failed' }
+    Assert-Throws { Invoke-Hybrid $f } 'Geri alma sonrası başlatmadan önce görülen Paper işlemi durdurmalı.'
+    Assert-True (Test-State $f $f.OldHashes) 'Geri alma tamamlanmış dosyalar özgün kalmalı.'
+    Assert-True ((Get-EventCount 'start') -eq 1 -and (Get-Phase $f) -ceq 'RECOVERY_BLOCKED') 'Beklenmedik Paper varken özgün sürüm başlatılmamalı.'
+
     # Partial writes.
     $f = New-Fixture; $script:failWritesAt = @(2)
     Assert-Throws { Invoke-Hybrid $f } 'Kısmi yazım başarısız sayılmalı.'
@@ -288,7 +315,7 @@ try {
     $script:onReady = { $script:onReady = $null; throw 'startup failed' }
     Assert-Throws { Invoke-Hybrid $f } 'Bozuk başlangıç başarısız kalmalı.'
     Assert-True (Test-State $f $f.OldHashes) 'Bozuk başlangıçta üç dosya geri alınmalı.'
-    Assert-True (($script:events -join ',') -ceq 'rcon-probe,stop,ports-closed,start,ready,stop,ports-closed,start,ready') 'Geri alma güvenli kapanıştan sonra yapılmalı.'
+    Assert-True (($script:events -join ',') -ceq 'rcon-probe,stop,ports-closed,ports-closed,ports-closed,start,ready,stop,ports-closed,ports-closed,ports-closed,start,ready') 'Geri alma güvenli kapanıştan sonra yapılmalı.'
     Assert-True ($script:readyMarkers[0] -ceq $marker -and $script:readyMarkers[1] -ceq '') 'Özgün sürümden yeni açılış kanıtı beklenmemeli.'
     Assert-True ((Get-Phase $f) -ceq 'ROLLED_BACK_READY') 'Tamamlanan geri alma günlüğe geçmeli.'
 

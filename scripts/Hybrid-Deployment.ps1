@@ -103,6 +103,10 @@ function Stop-HybridFailedStart([string]$Root,[hashtable]$Properties,[string]$Ba
     if($listeners.Count){$failed=Get-ServerIdentity $Properties $BatText;Stop-ServerSafely $failed $Properties $StopTimeoutSeconds}
     Assert-PortsClosed $Properties
 }
+function Assert-HybridServerAbsent($Properties) {
+    # restart-on-crash can spawn Paper behind us; that process is never ours to stop or overwrite.
+    try{Assert-PortsClosed $Properties}catch{throw 'UNEXPECTED_SERVER_PROCESS'}
+}
 function Write-HybridJournal([string]$Backup,[string]$Phase,$Plan) {
     [IO.File]::WriteAllText((Join-Path $Backup 'transaction.json'),(@{Phase=$Phase;Marker=$Plan.Marker;Files=@($Plan.Files|Select-Object Kind,OldHash,NewHash)}|ConvertTo-Json -Depth 6))
 }
@@ -138,7 +142,7 @@ function Invoke-HybridDeployment {
         $probe=Open-Rcon $properties;$probe.Dispose()
         $null=Read-HybridPlan $Root $ManifestPath
         Stop-ServerSafely $identity $properties $StopTimeoutSeconds;$stopped=$true
-        Assert-PortsClosed $properties
+        Assert-HybridServerAbsent $properties
         # Shutdown itself may save NPC YAML. Never silently rebase a reviewed plan.
         $null=Read-HybridPlan $Root $ManifestPath
         $opened=Open-HybridTargets $plan
@@ -149,6 +153,7 @@ function Invoke-HybridDeployment {
             Assert-HybridHash (Join-Path $backup ('final/'+$item.Entry.Kind+'.bin')) $item.Entry.OldHash 'post-stop backup'
         }
         Write-HybridJournal $backup 'VERIFIED_STOPPED_BACKUP' $plan
+        Assert-HybridServerAbsent $properties
         try {
             foreach($item in $opened){$changed=$true;Write-HybridTarget $item.Stream $item.Entry.Candidate;if((Get-HybridStreamHash $item.Stream) -ine $item.Entry.NewHash){throw 'Installed file hash mismatch.'}}
         } catch {
@@ -157,6 +162,7 @@ function Invoke-HybridDeployment {
             throw
         } finally {foreach($item in $opened){$item.Stream.Dispose()};$opened=@()}
         Write-HybridJournal $backup 'APPLIED' $plan
+        Assert-HybridServerAbsent $properties
         $since=[datetime]::UtcNow;$header=Get-LogHeader $Root;$started=$true
         Start-ServerBat $Root $bat $identity.Java
         $null=Wait-ServerReady $Root $properties $batText $since $StartTimeoutSeconds $header $knownPluginNames $plan.Marker
@@ -167,6 +173,7 @@ function Invoke-HybridDeployment {
     } catch {
         $failure=$_
         foreach($item in $opened){$item.Stream.Dispose()};$opened=@()
+        if("$($failure.Exception.Message)" -ceq 'UNEXPECTED_SERVER_PROCESS'){$recoveryBlocked=$true;Write-Warning "Unexpected Paper process. No stop, write or restart. Private backup: $backup"}
         $outcome='FAILED'
         if($stopped -and !$recoveryBlocked){
             try {
@@ -175,10 +182,12 @@ function Invoke-HybridDeployment {
                     $receipt=if($started){Get-HybridNpcReceipt $Root $plan.Marker $since $header}else{''}
                     $opened=Open-HybridTargets $plan
                     foreach($item in $opened){$hash=Get-HybridStreamHash $item.Stream;if($hash -ine $item.Entry.OldHash -and $hash -ine $item.Entry.NewHash -and !($item.Entry.Kind -eq 'Npc' -and $receipt -and $hash -ieq $receipt)){throw 'Unreviewed file change; rollback must not overwrite it.'}}
+                    Assert-HybridServerAbsent $properties
                     Restore-HybridTargets $opened $backup
                     foreach($item in $opened){$item.Stream.Dispose()};$opened=@()
                     Write-HybridJournal $backup 'ROLLED_BACK' $plan
                 }
+                Assert-HybridServerAbsent $properties
                 $recoverySince=[datetime]::UtcNow;$recoveryHeader=Get-LogHeader $Root
                 Start-ServerBat $Root $bat $identity.Java
                 $null=Wait-ServerReady $Root $properties $batText $recoverySince $StartTimeoutSeconds $recoveryHeader $knownPluginNames
