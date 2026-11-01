@@ -193,6 +193,7 @@ public final class LoreEngine {
             if (frequency <= Math.max(1, articleTerms.size() / 3)) rareTerms.add(term);
         }
         List<Candidate> ranked = new ArrayList<>();
+        Map<Candidate, String> candidateEntities = new HashMap<>();
         for (Passage passage : passages) {
             List<String> reasons = new ArrayList<>();
             boolean direct = entities.contains(passage.key());
@@ -219,7 +220,9 @@ public final class LoreEngine {
             reasons.add(String.format(Locale.ROOT, "BODY_SCORE=%.2f", direct ? score - 100 : score));
             if (direct) reasons.add("ENTITY_BONUS=100");
             if (score < settings.minScore()) reasons.add("REJECT_LOW_SCORE");
-            ranked.add(new Candidate(passage.title(), passage.source(), passage.number(), score, coverage, reasons, false, passage.text(), passage.via()));
+            Candidate candidate = new Candidate(passage.title(), passage.source(), passage.number(), score, coverage, reasons, false, passage.text(), passage.via());
+            ranked.add(candidate);
+            candidateEntities.put(candidate, passage.key());
         }
         ranked.sort(Comparator.comparingDouble(Candidate::score).reversed().thenComparing(Candidate::title)
                 .thenComparing(Candidate::source).thenComparingInt(Candidate::passage));
@@ -242,11 +245,21 @@ public final class LoreEngine {
             }
         }
         int wikiCount = 0;
-        List<Candidate> trace = new ArrayList<>();
+        List<Candidate> selectionOrder = new ArrayList<>();
+        Set<String> coveredEntities = new HashSet<>();
+        if (entities.size() > 1) for (Candidate candidate : ranked) {
+            String key = candidateEntities.get(candidate);
+            if (entities.contains(key) && candidate.reasons().stream().noneMatch(reason -> reason.startsWith("REJECT_"))
+                    && coveredEntities.add(key)) selectionOrder.add(candidate);
+        }
+        Set<Candidate> coverageFirst = Set.copyOf(selectionOrder);
+        for (Candidate candidate : ranked) if (!coverageFirst.contains(candidate)) selectionOrder.add(candidate);
+        Map<Candidate, Candidate> decisions = new HashMap<>();
         Map<String, Integer> perArticle = new HashMap<>();
         Set<String> includedPassages = new HashSet<>();
-        for (Candidate candidate : ranked) {
+        for (Candidate candidate : selectionOrder) {
             List<String> reasons = new ArrayList<>(candidate.reasons());
+            if (coverageFirst.contains(candidate)) reasons.add("ENTITY_COVERAGE_FIRST");
             boolean eligible = reasons.stream().noneMatch(reason -> reason.startsWith("REJECT_"));
             boolean selected = false;
             String identity = candidate.title() + "\u0000" + candidate.source() + "\u0000" + candidate.passedExcerpt();
@@ -261,13 +274,13 @@ public final class LoreEngine {
                     perArticle.merge(candidate.title(), 1, Integer::sum);
                 } else reasons.add("OMIT_CONTEXT_BUDGET");
             }
-            trace.add(new Candidate(candidate.title(), candidate.source(), candidate.passage(), candidate.score(),
+            decisions.put(candidate, new Candidate(candidate.title(), candidate.source(), candidate.passage(), candidate.score(),
                     candidate.coverage(), reasons, selected, selected ? candidate.passedExcerpt() : "", candidate.viaWikiRedirect()));
         }
         String status = verifiedCount + wikiCount > 0 ? "MATCHED" :
                 ranked.stream().anyMatch(candidate -> candidate.reasons().stream().noneMatch(reason -> reason.startsWith("REJECT_")))
                         ? "NO_CONTEXT_ROOM_OR_WIKI_DISABLED" : "NO_RELEVANT_SOURCE";
-        return new Result(status, data.toString(), trace, List.copyOf(entities), verifiedCount, wikiCount);
+        return new Result(status, data.toString(), ranked.stream().map(decisions::get).toList(), List.copyOf(entities), verifiedCount, wikiCount);
     }
 
     private static Result empty(String status) { return new Result(status, "", List.of(), List.of(), 0, 0); }

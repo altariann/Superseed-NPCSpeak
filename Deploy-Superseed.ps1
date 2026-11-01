@@ -209,6 +209,7 @@ function Invoke-ProjectBuild([string]$Jdk) {
             if ($LASTEXITCODE -ne 0) { throw "Gradle başarısız (çıkış $LASTEXITCODE). Sunucuya dokunulmadı." }
             & (Join-Path $RepoRoot 'tests\Test-Deployment.ps1')
             & (Join-Path $RepoRoot 'tests\Test-LoreSnapshot.ps1')
+            & (Join-Path $RepoRoot 'tests\Test-LorePilot.ps1')
         } finally { Pop-Location }
         $outputs = @(Get-ChildItem -LiteralPath (Join-Path $RepoRoot 'build\libs') -Filter '*.jar' |
             Where-Object { $_.Extension -ieq '.jar' -and (Get-PluginName $_.FullName) -eq 'NPCSpeak' })

@@ -86,4 +86,14 @@ class LoreArchiveRegressionTest {
         assertTrue(result.candidates().stream().filter(LoreEngine.Candidate::selected).allMatch(candidate -> candidate.title().equals("Test Person")));
         assertTrue(engine.retrieve("Merkez hakkında bilgi ver.").hasSources());
     }
+    @Test void anAliasGroupCannotConsumeAllSlotsInAMultiEntityComparison() {
+        String repeated = "Bu aynı eski kayıt ve diğer adı hakkında açıklamadır. ".repeat(25);
+        var engine = new LoreEngine(LoreEngine.Settings.defaults(),
+                List.of(page("Alias Tower", repeated), page("Modern Tower", repeated), page("Second Center", "Second Center ayrı bir binadır.")),
+                List.of(new LoreEngine.Alias("Modern Tower", List.of("Alias Tower"), "Eski ve yeni ad aynı yapı.")), List.of(), Map.of());
+        var result = engine.retrieve("Alias Tower ve Modern Tower aynı yer mi? Second Center onun diğer adı mı?");
+        assertTrue(result.candidates().stream().anyMatch(candidate -> candidate.selected() && candidate.title().equals("Second Center")));
+        assertTrue(result.candidates().stream().filter(LoreEngine.Candidate::selected).anyMatch(candidate -> candidate.title().equals("Alias Tower") || candidate.title().equals("Modern Tower")));
+        assertTrue(result.wikiCount() <= 3);
+    }
 }

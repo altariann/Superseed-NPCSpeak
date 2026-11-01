@@ -51,6 +51,21 @@ tasks.register<JavaExec>("evaluateLore") {
          "--output", providers.gradleProperty("loreOutput").getOrElse(""))
 }
 
+tasks.register<JavaExec>("prepareLorePilot") {
+    group = "verification"
+    description = "Export private pilot requests through production prompt/serialization code; no HTTP."
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.l299l.npcspeak.knowledge.LorePilotPreparation")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    args("--data", providers.gradleProperty("loreData").getOrElse(""),
+         "--cases", providers.gradleProperty("pilotCases").getOrElse(""),
+         "--style", providers.gradleProperty("pilotStyle").getOrElse(""),
+         "--npc", providers.gradleProperty("pilotNpc").getOrElse(""),
+         "--model", providers.gradleProperty("pilotModel").getOrElse(""),
+         "--output", providers.gradleProperty("loreOutput").getOrElse(""))
+}
+
 tasks {
     runServer {
         // Configure the Minecraft version for our task.
