@@ -38,12 +38,16 @@ public final class HybridAnswerService {
         return plan.guarded() ? CompletableFuture.completedFuture(fallback(plan)) : CompletableFuture.failedFuture(error);
     }
     private static AnswerOutcome fallback(AnswerPlan plan) {
-        return new AnswerOutcome(plan.sourceAnswer() + " " + SAFE_CHAT.get(1), SOURCE_FALLBACK);
+        return new AnswerOutcome(plan.sourceAnswer() + " " + SAFE_CHAT.get(0) + " " + SAFE_CHAT.get(1), SOURCE_FALLBACK);
     }
 
     private static boolean supported(String candidate, String sourceAnswer) {
         if (candidate == null) return false;
         String text = candidate.strip();
-        return text.equals(sourceAnswer) || SAFE_CHAT.stream().anyMatch(tail -> text.equals(sourceAnswer + " " + tail));
+        // A guarded turn includes a social request: a source-only answer silently loses it.
+        // Accept exactly the reviewed sentences, singly or together, never arbitrary paraphrases.
+        return SAFE_CHAT.stream().anyMatch(tail -> text.equals(sourceAnswer + " " + tail))
+                || text.equals(sourceAnswer + " " + SAFE_CHAT.get(0) + " " + SAFE_CHAT.get(1))
+                || text.equals(sourceAnswer + " " + SAFE_CHAT.get(1) + " " + SAFE_CHAT.get(0));
     }
 }

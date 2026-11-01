@@ -170,7 +170,7 @@ class HybridAnswerTest {
         assertEquals(1, backend.calls);
         assertEquals(0, backend.streamCalls);
         assertTrue(previews.isEmpty());
-        assertEquals(p.sourceAnswer() + " Sohbete de devam edebiliriz.", session.getHistory().get(1).content());
+        assertEquals(p.sourceAnswer() + " İyiyim, teşekkür ederim. Sohbete de devam edebiliriz.", session.getHistory().get(1).content());
         assertFalse(logged.get(0).contains("koordineli"));
     }
     @Test void guardedReplyWaitsUntilCompleteAndUsesNoSecondModel() throws Exception {
@@ -282,5 +282,33 @@ class HybridAnswerTest {
             public String getName() { return "failing-fake"; }
         };
         assertEquals(SOURCE_FALLBACK, service.answer(p, List::of, backend, true, token -> fail()).join().origin());
+    }
+    @Test void reviewedChatSentencesCanAppearTogetherWithoutRejectingSafeMixedAnswer() throws Exception {
+        var p = plan("iladymoon'un görevleri neler, bugün nasılsın?");
+        for (String tail : List.of("İyiyim, teşekkür ederim. Sohbete de devam edebiliriz.",
+                "Sohbete de devam edebiliriz. İyiyim, teşekkür ederim.")) {
+            var backend = new FakeBackend(); backend.response = p.sourceAnswer() + " " + tail;
+            var outcome = answer(p, backend, token -> fail("Guarded answer must stay buffered"));
+            assertEquals(MODEL, outcome.origin());
+            assertEquals(backend.response, outcome.text());
+            assertEquals(1, backend.calls);
+        }
+    }
+    @Test void sourceOnlyMixedCandidateCannotSilentlyDropSocialQuestion() throws Exception {
+        var p = plan("iladymoon'un görevleri neler, bugün nasılsın?");
+        var backend = new FakeBackend(); backend.response = p.sourceAnswer();
+        var result = answer(p, backend, token -> fail());
+        assertEquals(SOURCE_FALLBACK, result.origin());
+        assertTrue(result.text().startsWith(p.sourceAnswer()));
+        assertTrue(result.text().contains("İyiyim, teşekkür ederim."));
+        assertEquals(1, backend.calls);
+    }
+    @Test void reviewedChatPlusUnsupportedThirdSentenceIsStillRejected() throws Exception {
+        var p = plan("iladymoon'un görevleri neler, bugün nasılsın?");
+        var backend = new FakeBackend();
+        backend.response = p.sourceAnswer() + " İyiyim, teşekkür ederim. Sohbete de devam edebiliriz. Onun amiriyim.";
+        var result = answer(p, backend, token -> fail());
+        assertEquals(SOURCE_FALLBACK, result.origin());
+        assertFalse(result.text().contains("amiriyim"));
     }
 }
