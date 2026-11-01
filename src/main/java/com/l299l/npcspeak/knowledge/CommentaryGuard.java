@@ -9,7 +9,9 @@ final class CommentaryGuard {
     private static final int MAX_LENGTH = 180;
     private static final Pattern OPINION_START = Pattern.compile("^(?:bence|bana gore|bana kalirsa|kanimca|kisisel olarak)\\b.*");
     private static final Pattern FACT_CLAIM = Pattern.compile("\\b(?:bagli|bagla|amir|kayit|kayd|resmi|belge|atan|atam|atad|secil|secim|oy(?:lar|u|a)?\\b"
-            + "|yetki|vekil|mudur|yardimci|makam|gorev|kurdu|kurul|acti|yapti|yapildi|kazandi|getirdi|imzala|karar|butce|proje|tarih|yil|eskiden)");
+            + "|yetki|vekil|mudur|yardimci|makam|gorev|kurdu|kurul|acti|yapti|yapildi|kazandi|getirdi|imzala|karar|butce|proje|tarih|yil|eskiden|memnun|sikayet)");
+    // The setting itself is not a claim about a person or institution.
+    private static final String SETTING_NAME = "superseed";
 
     private CommentaryGuard() {}
 
@@ -36,14 +38,21 @@ final class CommentaryGuard {
     private static String normalize(String text) { return LoreEngine.normalize(text).replace('’', '\''); }
 
     // A capitalized word the player did not write is treated as a new person, place or organization.
+    // At a sentence start capitals prove nothing, so only a suffix or a following name marks one there.
     private static String introducedName(String text, String clause) {
         String[] words = text.split("\\s+");
         for (int i = 1; i < words.length; i++) {
-            String word = words[i].replaceAll("[^\\p{L}'’]", "");
-            if (word.isEmpty() || !Character.isUpperCase(word.codePointAt(0)) || words[i - 1].matches(".*[.!?]$")) continue;
+            String word = cleanWord(words[i]);
+            if (word.isEmpty() || !Character.isUpperCase(word.codePointAt(0))) continue;
             String stem = normalize(word).replaceFirst("'.*$", "");
-            if (!clause.contains(stem)) return word;
+            if (stem.equals(SETTING_NAME) || clause.contains(stem)) continue;
+            boolean sentenceStart = words[i - 1].matches(".*[.!?]$");
+            boolean nameShaped = word.matches(".*['’].*") || i + 1 < words.length && !cleanWord(words[i + 1]).isEmpty()
+                    && Character.isUpperCase(cleanWord(words[i + 1]).codePointAt(0));
+            if (!sentenceStart || nameShaped) return word;
         }
         return null;
     }
+
+    private static String cleanWord(String word) { return word.replaceAll("[^\\p{L}'’]", ""); }
 }

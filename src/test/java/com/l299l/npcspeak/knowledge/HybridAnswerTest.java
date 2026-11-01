@@ -363,6 +363,24 @@ class HybridAnswerTest {
             assertEquals("Bu bağlılığa ilişkin doğrulanmış güncel kaydım yok. " + AnswerPlanner.INVITATION, outcome.text(), candidate);
         }
     }
+    @Test void recordedGemmaPilotResponsesReceiveTheReviewedDecision() {
+        List<String> blocked = List.of("iladymoon", "ozel kalem muduru", "belediye baskan vekili");
+        assertNull(CommentaryGuard.rejection("Bence, Tech'in şehir için iyi niyetli olduğunu düşünüyorum, ama biraz fazla idealist. Superseed'in gerçekleriyle başa çıkması zor olabilir, değil mi?",
+                "Sence Tech iyi bir belediye başkanı mı", blocked));
+        assertNotNull(CommentaryGuard.rejection("Bence Superseed'e yapılan işler ortada, vatandaşlar memnun. Bizler burada çalışıyoruz, sizler de oy veriyorsunuz, işte bu kadar!",
+                "Sence belediye şehri iyi yönetiyor mu", blocked));
+        assertNull(CommentaryGuard.rejection("Bence siyasette her ikisi de lazım, ama öncelik insanları dinlemek. Halkın sesi olmak, onların sorunlarını anlamak, işte gerçek liderlik!",
+                "Sence siyasette özgüven mi önemli yoksa insanları dinlemek mi", blocked));
+        assertNull(CommentaryGuard.rejection("Bence biraz fazla gösterişli olmuş, ama Superseed'e renk katıyor tabii ki.",
+                "iladymoon sence başarılı mı", List.of()));
+    }
+    @Test void aNewNameAtASentenceStartIsStillCaught() {
+        String clause = "Sence Tech iyi bir belediye başkanı mı";
+        assertEquals("NEW_NAME:Kurgusal", CommentaryGuard.rejection("Bence iyi. Kurgusal Kişi daha iyi olurdu.", clause, List.of()));
+        assertEquals("NEW_NAME:Kurgusal'ın", CommentaryGuard.rejection("Bence iyi. Kurgusal'ın ekibi daha güçlü.", clause, List.of()));
+        assertTrue(CommentaryGuard.rejection("Bence vatandaşlar memnun.", clause, List.of()).startsWith("FACT_CLAIM:"));
+        assertNull(CommentaryGuard.rejection("Bence iyi. Halk bunu görüyor.", clause, List.of()));
+    }
     @Test void commentaryBackendFailureStillDeliversSource() throws Exception {
         var p = plan("iladymoon kime bağlı? Sence Tech iyi bir belediye başkanı mı?");
         var backend = new FakeBackend();
