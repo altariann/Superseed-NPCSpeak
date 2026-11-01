@@ -1,11 +1,11 @@
 # Proje durumu
 
-Son doğrulama: **1 Kasım 2026 22:35, Europe/Istanbul**. Bu dosya güncel durum özetidir;
+Son doğrulama: **1 Kasım 2026 23:27, Europe/Istanbul**. Bu dosya güncel durum özetidir;
 son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS](../../AGENTS.md).
 
 ## Git ve kabul durumu
 
-- Dal: `dev/superseed-automation`. Doğrulanan son uygulama commit'i: `94440c1`.
+- Dal: `dev/superseed-automation`. Doğrulanan son uygulama commit'i: `352cbcb`.
   Bu belgelerin commit'i bunun üzerine gelir; gerçek HEAD'i Git'ten oku.
 - [PR #2](https://github.com/altariann/Superseed-NPCSpeak/pull/2) açık;
   head `dev/superseed-automation`, base `dev/superseed-source`.
@@ -15,10 +15,11 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
   `2589220` oturum/filtre güvenliği, `0e115f5` pilot aracı ve sonuç raporu,
   `c08cbf3` üç dosyalı güvenli dağıtım hazırlığı, `e73ba31` geçersiz plan koruması,
   `82c3218` beklenmedik Paper koruması, `e2fb567` paylaşımlı log okuma,
-  `94440c1` çok niyetli tur ve başkan soruları düzeltmesi.
+  `94440c1` çok niyetli tur ve başkan soruları düzeltmesi, `0a5e30b` yalnız-JAR yolu,
+  `352cbcb` pilot bulgularıyla yorum filtresi düzeltmesi.
 - İlk kontrollü canlı geçiş kullanıcı onayıyla 1 Kasım 22:01'de uygulandı. Canlı
-  JAR `5bddbd93…de91a6` iken depo JAR'ı `b7502123…c27a`: **`94440c1` canlıda değil**,
-  oyun içi iki hata canlıda sürer. Yeni dağıtım ayrı onay ister.
+  JAR `5bddbd93…de91a6` iken depo JAR'ı `e5b8ddc6…0e7e`: **`94440c1` ve sonrası canlıda
+  değil**, oyun içi iki hata canlıda sürer. Yeni dağıtım ayrı onay ister.
 
 ## Uygulanan mimari
 
@@ -45,14 +46,18 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
 ## Doğrulanan son sonuçlar
 
 - JDK 26.0.2; ana Java hedefi 17 / major 61.
-- **154 Java testi, 0 başarısızlık/hata/atlama; 245 PowerShell denetimi**
-  (75 dağıtım + 144 üç dosyalı dağıtım + 11 snapshot + 15 pilot). Temiz
-  `Deploy-Superseed.ps1 -Mode Build` başarılı; kanıt zamanı 1 Kasım 22:33 İstanbul.
-  Java sayısı XML raporlarından okundu. Depo JAR'ı: test sınıfı/wiki yok, major 61,
-  SHA256 `b7502123…c27a`. Canlıya kurulmadı.
+- **162 Java testi, 0 başarısızlık/hata/atlama; 298 PowerShell denetimi**
+  (80 dağıtım + 144 üç dosyalı + 148 yalnız-JAR + 11 snapshot + 15 pilot). Temiz
+  `Deploy-Superseed.ps1 -Mode Build` başarılı; kanıt zamanı 1 Kasım 23:14 İstanbul.
+  Java sayısı XML raporlarından okundu. Depo JAR'ı SHA256 `e5b8ddc6…0e7e`. Canlıya kurulmadı.
+- Gerçek açılış logu çevrimdışı denetimden geçti: `Ready=True`, 2 eski hata uyarı sayıldı.
+  Normal açılıştaki `All dimensions are saved` önce kapanış sayılıyordu; o hata olmasa ilk
+  dağıtım sağlıklı sürümü geri almaya çalışırdı. Giderildi.
+- Gemma yorum pilotu ([sonuçlar](../commentary-pilot-results.md)): 4 tekil istek, retry yok.
+  Pilot filtresi 2 kabul, 2 ret; 1 gereksiz ret ve 1 kural boşluğu düzeltildi. Sonra kayıtlı
+  yanıtlarla 3 kabul, 1 ret. Yeni inference yok. Genel üretim kabulü değil.
 - Geçiş verisiyle (6 kayıt, 221 wiki) çevrimdışı rota: başkan sorusu `LOCAL`/`mayor-tech`,
   karışık tur `COMMENTARY`/kanıtsız, 6/6 deterministik sorgu, sohbet ve yorum `MODEL`.
-  Gerçek model çağrılmadı; yorum filtresi gerçek Gemma çıktısıyla sınanmadı.
 - Üç dosyalı senaryolar sahte sunucu ağacı ve mock yaşam döngüsüyle sınandı;
   gerçek stop/kurulum/açılış ise tek canlı geçişle gözlendi (aşağıda). Oyun içi
   kabul veya TPS ölçümü yapılmadı.
@@ -70,7 +75,10 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
 - Karşılaştırma, tarih/yıl/gelecek, genel ilişkiler ve karmaşık karışık niyetler
   deterministik kapsamda değil. Serbest sohbetin tüm olguları doğrulanmış sayılmaz.
   Tek başına yorum sorusu ve varsayımlı cümleler ("sana bağlı olduğu için mi") Gemma'da kalır.
-- Yorum filtresi sezgiseldir, doğruluk denetimi değildir; yanlış pozitif davet üretir.
+- Yorum filtresi sezgiseldir, doğruluk denetimi değildir. Cümle başı tek kelimelik yeni ad
+  ve listede olmayan doğrulanmamış iddia geçebilir; gereksiz ret davet üretir.
+- Model yüklüyken boş RAM 811–1763 MB'ye indi (oyuncusuz). Paper `-Xmx` 6656 MB, RSS
+  4,6–4,9 GB; TPS 20,0 ama oyuncu/yük altı ölçüm yok. Modelin soğuk çağrısı 17–19 sn.
   Çok iyelikli serbest sohbette ("başkanımız çok iyi, adını unuttum") kaynak araması
   başkan kaydını yine bulamayabilir; kapsam dışı.
 - Oyun içi test (1 Kasım): üç sorgu doğru, iki olgusal hata bulundu. İkisi de `CHAT`

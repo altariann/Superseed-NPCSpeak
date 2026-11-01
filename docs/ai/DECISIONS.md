@@ -23,6 +23,10 @@ Güncel kullanıcı talimatı bu notlardan önceliklidir; notlar onay belgesi de
 | Rollback yalnız onaylı dosyaları kapsar | Citizens, wiki, mesaj, oyuncu hafızası ve dünyayı topluca geri sarma. Güvenli kapanış/geri alma doğrulanamıyorsa riskli yazmaya devam etme. Makbuzsuz NPC değişikliği dış düzenleme sayılır ve ezilmez. |
 | Plan kişilik metnini kendiliğinden değiştirmez | Eski kişilik cümlesi ayrı içerik kararıdır; değişecekse reçetede açık eski/yeni metinle yeni plan üretilir. |
 | Eski plan silinmez, zorunlu olarak geçersiz kılınır | `SUPERSEDED.txt` taşıyan plan Preview/Deploy'da reddedilir. Canlı hash'ler aynı olduğundan yalnız not bırakmak eski planın kurulmasını engellemez. |
+| Yalnız-JAR ve üç dosyalı dağıtım ayrı yollardır | JAR planı `PlanType: JarOnly` taşır, NPC/knowledge yazımı tanımlayamaz; göç yapılmamış sunucuda çalışmaz, üç dosyalı akış onu kabul etmez. Göç yeniden çalıştırılmaz. |
+| Planlar tek kullanımlıktır | Canlı hash'e bağlı plan yazımdan hemen önce `CONSUMED.txt` alır. Eski plan silinmez; `SUPERSEDED.txt` ile reddedilir. |
+| Sunucunun yazdığı dosyalar kurala göre denetlenir | `server.properties` tarih yorumu hariç karşılaştırılır. NPC yalnız açılış makbuzuyla değişebilir. Citizens'ta kimlik/skin eşit olmalı, diğer fark raporlanır. Beklenmeyen fark yeni taban yapılmaz. |
+| Gerçek log, dağıtım öncesi denetimden geçer | Sahte log `All dimensions are saved` satırını kapanış sanan hatayı göstermedi. Değişen log/açılış kodu mevcut gerçek logla çevrimdışı yeniden okunur. |
 | Beklenmedik Paper süreci işlemi durdurur | Yazımdan, geri yazımdan ve her başlatmadan önce süreç denetlenir; görülen sürece stop gönderilmez, dosya yazılmaz. Açılmakta olan sunucu da bu nedenle kapatılmaz; geri alma için önce kullanıcı değerlendirir. |
 | Canlı log paylaşımlı okunur | Log4j `latest.log`'u açık tutar; `ReadAllText` ilk canlı geçişte bu yüzden düştü. Sahte testler sunucunun açık tutamacını da taklit etmeli. |
 | Güncel kişi ve makamlar `municipal-records` içinde yönetilir | Kişilik metinleri kayıtlara yönlendirir; başkan veya görevli adı kişiliğe yazılmaz. |
