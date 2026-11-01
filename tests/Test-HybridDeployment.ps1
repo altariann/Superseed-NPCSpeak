@@ -169,6 +169,7 @@ try {
         'server.properties değişmiş' = { param($x) [IO.File]::AppendAllText((Join-Path $x.Root 'server.properties'), '#') }
         'Doğrulama dosyası değişmiş' = { param($x) [IO.File]::AppendAllText($x.Validation, ' ') }
         'İkinci NPCSpeak JAR' = { param($x) New-TestJar (Join-Path $x.Root 'plugins\second.jar') 'NPCSpeak' }
+        'Geçersiz kılınmış plan' = { param($x) [IO.File]::WriteAllText((Join-Path $x.Folder 'SUPERSEDED.txt'), 'fixture') }
     }
     foreach ($name in $gates.Keys) {
         $f = New-Fixture

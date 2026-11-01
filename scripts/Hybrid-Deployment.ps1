@@ -22,6 +22,7 @@ function Read-HybridPlan([string]$Root,[string]$ManifestPath) {
     if ($ExpectedPlanSha256) { Assert-HybridHash $ManifestPath $ExpectedPlanSha256 'reviewed plan' }
     $plan=Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $folder=Split-Path ([IO.Path]::GetFullPath($ManifestPath))
+    if(Test-Path -LiteralPath (Join-Path $folder 'SUPERSEDED.txt')){throw 'This migration plan is superseded; use the newer reviewed plan.'}
     if ($plan.FormatVersion -ne 1 -or [IO.Path]::GetFullPath($plan.ServerRoot).TrimEnd('\') -ine $Root.TrimEnd('\') -or
             $plan.StartBat -cne $StartBat -or $StartBat -ne [IO.Path]::GetFileName($StartBat) -or
             $plan.Files -isnot [array] -or $plan.Files.Count -ne 3 -or

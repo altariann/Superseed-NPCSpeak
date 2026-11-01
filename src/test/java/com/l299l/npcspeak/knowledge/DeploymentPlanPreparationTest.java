@@ -96,6 +96,31 @@ class DeploymentPlanPreparationTest {
         assertNotEquals(marker, HybridReadiness.marker("dogan-tirpan", "Doğan Tırpan", 313, true,
                 new LoreEngine(lore.settings(), List.of(), List.of(), reversed, Map.of()), "a".repeat(64), "b".repeat(64)));
     }
+    @Test void multiLinePersonaPatchStaysInsideBlockAndKeepsOtherLines() throws Exception {
+        setup(); Path npc = root.resolve("plugins/NPCSpeak/npcs/dogan-tirpan.yml");
+        Files.writeString(npc, """
+                display-name: Doğan Tırpan
+                citizens-id: 313
+                personality:
+                  system-prompt: |
+                    First retained line.
+
+                    Stale first line,
+                    stale second line.
+
+                    Last retained line.
+                  topic: untouched
+                  task: {type: freeform}
+                """);
+        String old = "    Stale first line,\n    stale second line.", replacement = "    Use verified records: never invent.";
+        Files.writeString(recipe, json.toJson(new DeploymentPlanPreparation.Recipe(root.toString(), artifact.toString(), temp.resolve("seed.yml").toString(), temp.resolve("cases.json").toString(), "dogan-tirpan", "Doğan Tırpan", 313, old, replacement)));
+        Path output = temp.resolve("plan"); DeploymentPlanPreparation.prepare(recipe, output);
+        String expected = Files.readString(npc).replace(old, replacement) + "\nknowledge-entity: 'Doğan Tırpan'\n";
+        assertEquals(expected, Files.readString(output.resolve("files/npc.yml")));
+        var candidate = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(output.resolve("files/npc.yml").toFile());
+        assertEquals("First retained line.\n\nUse verified records: never invent.\n\nLast retained line.\n", candidate.getString("personality.system-prompt"));
+        assertEquals("untouched", candidate.getString("personality.topic")); assertEquals(313, candidate.getInt("citizens-id"));
+    }
     @Test void alreadyMigratedSourceRequiresNewRecipe() throws Exception {
         setup(); Path npc = root.resolve("plugins/NPCSpeak/npcs/dogan-tirpan.yml");
         Files.writeString(npc, Files.readString(npc) + "knowledge-entity: 'Doğan Tırpan'\n");
