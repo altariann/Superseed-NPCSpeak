@@ -19,6 +19,8 @@ Güncel kullanıcı talimatı bu notlardan önceliklidir; notlar onay belgesi de
 | Rollback yalnız onaylı dosyaları kapsar | Citizens, wiki, mesaj, oyuncu hafızası ve dünyayı topluca geri sarma. Güvenli kapanış/geri alma doğrulanamıyorsa riskli yazmaya devam etme. Makbuzsuz NPC değişikliği dış düzenleme sayılır ve ezilmez. |
 | Plan kişilik metnini kendiliğinden değiştirmez | Eski kişilik cümlesi ayrı içerik kararıdır; değişecekse reçetede açık eski/yeni metinle yeni plan üretilir. |
 | Eski plan silinmez, zorunlu olarak geçersiz kılınır | `SUPERSEDED.txt` taşıyan plan Preview/Deploy'da reddedilir. Canlı hash'ler aynı olduğundan yalnız not bırakmak eski planın kurulmasını engellemez. |
+| Beklenmedik Paper süreci işlemi durdurur | Yazımdan, geri yazımdan ve her başlatmadan önce süreç denetlenir; görülen sürece stop gönderilmez, dosya yazılmaz. Açılmakta olan sunucu da bu nedenle kapatılmaz; geri alma için önce kullanıcı değerlendirir. |
+| Canlı log paylaşımlı okunur | Log4j `latest.log`'u açık tutar; `ReadAllText` ilk canlı geçişte bu yüzden düştü. Sahte testler sunucunun açık tutamacını da taklit etmeli. |
 | Güncel kişi ve makamlar `municipal-records` içinde yönetilir | Kişilik metinleri kayıtlara yönlendirir; başkan veya görevli adı kişiliğe yazılmaz. |
 | JDK 26, ana hedef Java 17; gerçek test kanıtı | Yeni taslağı önceki 136/99 sonucuyla başarılı gösterme. Sahte Bukkit/sunucu testleri oyun içi kabul veya TPS ölçümü değildir. |
 | Tek çalışma ağacında tek yazan ajan | Önce Git durumu, STATE ve HANDOFF okunur. Önceki ajanın yarım işini resetleme/ezme; doğrulanmış işi gerekmedikçe tekrarlama. |
