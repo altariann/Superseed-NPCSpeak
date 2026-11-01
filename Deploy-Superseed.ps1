@@ -297,10 +297,21 @@ function Test-StartupLog([string]$Text, [string[]]$KnownPluginNames = @()) {
     return (Get-StartupLogStatus $Text $KnownPluginNames).Ready
 }
 
+function Open-LogReader([string]$Path) {
+    # A running server keeps latest.log open for writing; a read must share that handle.
+    $stream = [IO.File]::Open($Path, 'Open', 'Read', 'ReadWrite,Delete')
+    return [IO.StreamReader]::new($stream, [Text.Encoding]::UTF8)
+}
+
+function Read-LogText([string]$Path) {
+    $reader = Open-LogReader $Path
+    try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
+}
+
 function Get-LogHeader([string]$Root) {
     $path = Join-Path $Root 'logs\latest.log'
     if (!(Test-Path -LiteralPath $path)) { return '' }
-    $reader = [IO.File]::OpenText($path)
+    $reader = Open-LogReader $path
     try { return $reader.ReadLine() } finally { $reader.Dispose() }
 }
 
@@ -311,7 +322,7 @@ function Wait-ServerReady {
     $log = Join-Path $Root 'logs\latest.log'
     while ([datetime]::UtcNow -lt $deadline) {
         if ((Test-Path -LiteralPath $log) -and (Get-Item -LiteralPath $log).LastWriteTimeUtc -ge $Since) {
-            $text = [IO.File]::ReadAllText($log)
+            $text = Read-LogText $log
             # Never accept the previous boot's Done/Enabling lines during log rotation.
             if ($OldHeader -and $text.StartsWith($OldHeader)) { Start-Sleep -Seconds 2; continue }
             $status = Get-StartupLogStatus $text $KnownPluginNames $ExpectedHybridMarker

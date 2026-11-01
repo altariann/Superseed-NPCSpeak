@@ -237,6 +237,11 @@ try {
     Assert-True ((Get-Hash $f.Targets.Npc) -ne $f.NewHashes.Npc -and (Get-Hash $f.Targets.Jar) -eq $f.NewHashes.Jar) 'Makbuzlu NPC yeniden yazımı korunmalı.'
 
     # Failures before the first write.
+    $f = New-Fixture; Write-Receipt $f
+    $receiptHash = Get-Hash $f.Targets.Npc
+    $liveLog = [IO.File]::Open((Join-Path $f.Root 'logs\latest.log'), 'Open', 'Write', 'ReadWrite')
+    try { Assert-True ((Get-HybridNpcReceipt $f.Root $marker ([datetime]::UtcNow.AddMinutes(-1)) 'old boot') -ieq $receiptHash) 'Makbuz sunucu logu tutarken okunabilmeli.' } finally { $liveLog.Dispose() }
+
     $f = New-Fixture; $script:onStop = { throw 'stop timeout' }
     Assert-Throws { Invoke-Hybrid $f } 'Güvenli kapanamama dağıtımı durdurmalı.'
     Assert-True (Test-State $f $f.OldHashes) 'Kapanış doğrulanamazsa dosya yazılmamalı.'

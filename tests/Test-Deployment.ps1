@@ -146,6 +146,13 @@ try {
     $ready = Wait-ServerReady $logRoot @{} '' $since 1 '' @('OtherPlugin') -WarningVariable healthWarnings -WarningAction SilentlyContinue
     Assert-True ($ready.Process.Id -eq 1) 'Gerçek bekleme döngüsü ilgisiz plugin hatasına rağmen başarı döndürmeli.'
     Assert-True (@($healthWarnings).Count -eq 1) 'Gerçek bekleme döngüsü ilgisiz hataları uyarı olarak bildirmeli.'
+    # A running server holds latest.log open for writing, as Log4j did in the first live deployment.
+    $liveLog = [IO.File]::Open((Join-Path $logRoot 'logs\latest.log'), 'Open', 'Write', 'ReadWrite')
+    try {
+        $ready = Wait-ServerReady $logRoot @{} '' $since 1 '' @('OtherPlugin') -WarningAction SilentlyContinue
+        Assert-True ($ready.Process.Id -eq 1) 'Bekleme döngüsü sunucunun yazmak için açık tuttuğu logu okuyabilmeli.'
+        Assert-True ((Get-LogHeader $logRoot) -ne $null) 'Log başlığı sunucu logu tutarken okunabilmeli.'
+    } finally { $liveLog.Dispose() }
     [IO.File]::WriteAllText((Join-Path $logRoot 'logs\latest.log'), $validLog + "`n[Server/ERROR]: Failed to start the minecraft server")
     Assert-Throws { Wait-ServerReady $logRoot @{} '' $since 1 '' } 'Gerçek bekleme döngüsü kritik hatada hemen durmalı.'
     function Wait-ServerReady {

@@ -88,7 +88,7 @@ function Restore-HybridTargets($Opened,[string]$Backup) {
 function Get-HybridNpcReceipt([string]$Root,[string]$Marker,[datetime]$Since,[string]$OldHeader) {
     $log=Join-Path $Root 'logs/latest.log'
     if(!(Test-Path -LiteralPath $log) -or (Get-Item -LiteralPath $log).LastWriteTimeUtc -lt $Since){return ''}
-    $text=[IO.File]::ReadAllText($log)
+    $text=Read-LogText $log
     if($OldHeader -and $text.StartsWith($OldHeader)){return ''}
     # A reload logs a newer receipt; only the last one describes the current file.
     $receipt=''
