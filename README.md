@@ -248,9 +248,20 @@ farklı NPC'lerde sorup tanı kaynağıyla yanıtı karşılaştırın; bilinmey
 sahiplik ve tarih sorularında uydurma ayrıntı vermediğini kontrol edin.
 
 Gerçek arşiv için AI'sız Aşama A yürütüldü; beklentilerin doğrulanma durumu ve
-ölçümler [Aşama A raporunda](docs/stage-a-results.md) açıklanmıştır. Gemma
-çağrısı yapılmadı; [kontrollü test planındaki](docs/lore-validation-plan.md)
-B/C aşamaları ayrıca değerlendirilecektir.
+ölçümler [Aşama A raporunda](docs/stage-a-results.md) açıklanmıştır.
+[Kontrollü test planındaki](docs/lore-validation-plan.md) B pilotu üçüncü
+yanıtta durduruldu; [Aşama B raporu](docs/stage-b-results.md)
+koşulları, sınırları ve sonraki kontrol önerisini açıklar. C aşaması çalıştırılmadı.
+
+`prepareLorePilot` yalnız özel istek dosyaları üretir; HTTP çağrısı yapmaz.
+Gerçek model çağrısı yalnız `scripts/Invoke-LorePilot.ps1` ile açıkça seçilmiş
+**tek** istek için yapılır. Bu araç normal `build` tarafından çalıştırılmaz;
+yalnız çevrimdışı `Test-LorePilot.ps1` denetimleri çalışır. Inference proxy ve
+redirect kullanmadan `127.0.0.1` adresine gider, model digest'ini doğrular,
+boş bellek eşiğini kontrol eder, mevcut yanıtı ezmez ve otomatik retry yapmaz.
+Gövdeye üretimden farklı inference seçenekleri eklenemez. HTTP başarısı olgusal
+başarı sayılmaz; her yanıttan sonra kaynak incelemesi gerekir. Özel prompt ve
+yanıt dosyalarını Git'e eklemeyin. Bu pilot aracı RCON veya sunucu yönetimi yapmaz.
 
 Gerçek arşivden gelen düzeltmeler: açık yerel `#REDIRECT`, `#YÖNLENDİRME` ve
 `Şuraya yönlendir:` kayıtları en fazla üç adımda takip edilir. Döngü, eksik veya

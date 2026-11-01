@@ -1,6 +1,7 @@
 # Gerçek wiki ve Gemma 3 4B kontrollü doğrulama planı
 
-Durum: **AI'sız Aşama A yürütüldü; Gemma B/C koşuları yapılmadı.**
+Durum: **AI'sız Aşama A yürütüldü; B pilotu üçüncü yanıttaki kaynak dışı ilişki
+nedeniyle durduruldu. C çalıştırılmadı.** [B raporu](stage-b-results.md).
 Gerçek sonuçlar ve insan doğrulaması sınırı [Aşama A raporundadır](stage-a-results.md).
 Bu plan kendi başına ölçülmüş başarı veya canlı dağıtım onayı değildir. Çalışma mevcut development
 dalı ve PR #2 üzerinde devam eder; yeni PR veya otomatik merge gerektirmez.
