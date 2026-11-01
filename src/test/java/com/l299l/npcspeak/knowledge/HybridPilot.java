@@ -45,13 +45,13 @@ public final class HybridPilot {
         Set<String> ids = new HashSet<>();
         for (Case item : cases) if (item.id() == null || !item.id().matches("[A-Z][0-9]{2}") || !ids.add(item.id())
                 || item.query() == null || item.query().isBlank() || item.expectedFragments() == null
-                || !Set.of("LOCAL", "MODEL", "GUARDED").contains(item.expectedRoute())) throw new IllegalArgumentException("Invalid case");
+                || !Set.of("LOCAL", "MODEL", "GUARDED", "COMMENTARY").contains(item.expectedRoute())) throw new IllegalArgumentException("Invalid case");
         Files.createDirectory(output); Files.createDirectory(output.resolve("responses"));
         List<Map<String, Object>> rows = new ArrayList<>();
         for (Case item : cases) {
             long started = System.nanoTime();
             var plan = new AnswerPlanner().plan(item.query(), speaker, lore, 0, config.isFreeformConversation());
-            String route = plan.local() ? "LOCAL" : plan.guarded() ? "GUARDED" : "MODEL";
+            String route = plan.local() ? "LOCAL" : plan.commentary() ? "COMMENTARY" : plan.guarded() ? "GUARDED" : "MODEL";
             if (!route.equals(item.expectedRoute())) throw new IllegalStateException("Frozen route mismatch: " + item.id());
             write(output.resolve(item.id() + ".plan.json"), plan);
             write(output.resolve(item.id() + ".sources.json"), lore.retrieve(item.query()));
@@ -64,7 +64,8 @@ public final class HybridPilot {
                 write(output.resolve(item.id() + ".outcome.json"), answer);
                 row.put("inferenceCalls", 0); row.put("elapsedMs", (System.nanoTime() - started) / 1_000_000.0);
             } else {
-                var messages = GroundedPrompt.messages(instructions, lore.persona(npcId), null, List.of(), item.query(), lore, speaker, plan);
+                var messages = plan.commentary() ? GroundedPrompt.commentary(instructions, lore.persona(npcId), plan.query().remainder())
+                        : GroundedPrompt.messages(instructions, lore.persona(npcId), null, List.of(), item.query(), lore, speaker, plan);
                 String request = OllamaBackend.encodeRequest(model, messages, false);
                 Files.writeString(output.resolve(item.id() + ".request.json"), request, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
                 row.put("requestSha256", LoreEvaluation.sha(request.getBytes(StandardCharsets.UTF_8)));
@@ -93,6 +94,8 @@ public final class HybridPilot {
                 token -> { throw new AssertionError("Replay does not publish tokens"); }).join();
         if (calls.get() != 1) throw new AssertionError("Replay adapter must be invoked exactly once");
         write(bundle.resolve(id + ".outcome.json"), result);
+        if (plan.commentary()) write(bundle.resolve(id + ".guard.json"), Map.of("rejection",
+                String.valueOf(CommentaryGuard.rejection(candidate, plan.query().remainder(), plan.commentBlockedTerms()))));
         System.out.println(id + ": " + result.origin() + "; kayıtlı yanıt üretim katmanından geçirildi, yeni inference yok.");
     }
     private static AiBackend backend(String answer, AtomicInteger calls) {

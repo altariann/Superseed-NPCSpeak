@@ -14,25 +14,36 @@ final class CommentaryGuard {
     private CommentaryGuard() {}
 
     static boolean safe(String candidate, String clause, List<String> blockedTerms) {
-        if (candidate == null) return false;
-        String text = candidate.strip();
-        if (text.isEmpty() || text.length() > MAX_LENGTH || text.matches("(?s).*[\\d\\n\"“”].*")) return false;
-        String normalized = LoreEngine.normalize(text).replace('’', '\'');
-        if (!OPINION_START.matcher(normalized).matches() || FACT_CLAIM.matcher(normalized).find()) return false;
-        if (Arrays.stream(text.split("[.!?]+\\s*")).filter(s -> !s.isBlank()).count() > 2) return false;
-        if (blockedTerms.stream().anyMatch(normalized::contains)) return false;
-        return !introducesName(text, LoreEngine.normalize(clause).replace('’', '\''));
+        return rejection(candidate, clause, blockedTerms) == null;
     }
 
+    /** The first failed rule, or null when the opinion may follow the fixed answer. */
+    static String rejection(String candidate, String clause, List<String> blockedTerms) {
+        if (candidate == null || candidate.isBlank()) return "EMPTY";
+        String text = candidate.strip();
+        if (text.length() > MAX_LENGTH) return "TOO_LONG";
+        if (text.matches("(?s).*[\\d\\n\"“”].*")) return "DIGIT_QUOTE_OR_NEWLINE";
+        String normalized = normalize(text);
+        if (!OPINION_START.matcher(normalized).matches()) return "NO_OPINION_START";
+        var claim = FACT_CLAIM.matcher(normalized);
+        if (claim.find()) return "FACT_CLAIM:" + claim.group();
+        if (Arrays.stream(text.split("[.!?]+\\s*")).filter(s -> !s.isBlank()).count() > 2) return "TOO_MANY_SENTENCES";
+        for (String term : blockedTerms) if (normalized.contains(term)) return "BLOCKED_TERM:" + term;
+        String name = introducedName(text, normalize(clause));
+        return name == null ? null : "NEW_NAME:" + name;
+    }
+
+    private static String normalize(String text) { return LoreEngine.normalize(text).replace('’', '\''); }
+
     // A capitalized word the player did not write is treated as a new person, place or organization.
-    private static boolean introducesName(String text, String clause) {
+    private static String introducedName(String text, String clause) {
         String[] words = text.split("\\s+");
         for (int i = 1; i < words.length; i++) {
             String word = words[i].replaceAll("[^\\p{L}'’]", "");
             if (word.isEmpty() || !Character.isUpperCase(word.codePointAt(0)) || words[i - 1].matches(".*[.!?]$")) continue;
-            String stem = LoreEngine.normalize(word).replace('’', '\'').replaceFirst("'.*$", "");
-            if (!clause.contains(stem)) return true;
+            String stem = normalize(word).replaceFirst("'.*$", "");
+            if (!clause.contains(stem)) return word;
         }
-        return false;
+        return null;
     }
 }

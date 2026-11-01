@@ -94,6 +94,16 @@ tasks.register<JavaExec>("prepareHybridDeployment") {
          "--output", providers.gradleProperty("deploymentOutput").getOrElse(""))
 }
 
+tasks.register<JavaExec>("prepareJarUpdate") {
+    group = "verification"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.l299l.npcspeak.knowledge.JarPlanPreparation")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    args("--recipe", providers.gradleProperty("deploymentRecipe").getOrElse(""),
+         "--output", providers.gradleProperty("deploymentOutput").getOrElse(""))
+}
+
 tasks {
     runServer {
         // Configure the Minecraft version for our task.

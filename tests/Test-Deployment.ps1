@@ -107,6 +107,10 @@ try {
     Assert-True (!(Test-StartupLog ($validLog + "`n[Server thread/FATAL]: Unrecoverable failure"))) 'FATAL sunucu hatası reddedilmeli.'
     Assert-True (!(Test-StartupLog "[NPCSpeak] Enabling NPCSpeak v1.0`nDone (1.0s)!")) 'Eksik Citizens etkinleşmesi kabul edilmemeli.'
     Assert-True (!(Test-StartupLog "Done (1.0s)!`n[NPCSpeak] Enabling NPCSpeak v1.0`n[Citizens] Enabling Citizens v2")) 'Done hedef pluginlerden önceyse başarı sayılmamalı.'
+    # Observed on the real server: this line belongs to a normal boot, before Done.
+    $bootSave = "[NPCSpeak] Enabling NPCSpeak v1.0`n[Citizens] Enabling Citizens v2`n[22:02:01] [Server thread/INFO]: ThreadedAnvilChunkStorage: All dimensions are saved`nDone (46.111s)! For help"
+    Assert-True (Test-StartupLog $bootSave) 'Açılıştaki normal dünya kaydı kapanış sayılmamalı.'
+    Assert-True (!(Test-StartupLog ($bootSave + "`n[Server thread/INFO]: Closing Server"))) 'Gerçek kapanış satırı reddedilmeye devam etmeli.'
 
     # No listeners/processes/real RCON are used below. Mocks record lifecycle order.
     $server = Join-Path $testRoot 'server'
@@ -131,7 +135,12 @@ try {
     $script:failReady = $false
     $script:wildcard = $false
     function Invoke-ProjectBuild { param($Jdk); $script:events.Add('build'); if ($script:failBuild) { throw 'build failed' }; return $candidate }
-    function Get-ServerIdentity { param($Properties, $BatText); return [pscustomobject]@{Java='java.exe'; Wildcard=$script:wildcard; Process=[pscustomobject]@{Id=1;StartTime=Get-Date}} }
+    $script:identityFailures = 0
+    function Get-ServerIdentity {
+        param($Properties, $BatText)
+        if ($script:identityFailures -gt 0) { $script:identityFailures--; throw 'Dinleyen port bulunamadı' }
+        return [pscustomobject]@{Java='java.exe'; Wildcard=$script:wildcard; Process=[pscustomobject]@{Id=1;StartTime=Get-Date}}
+    }
     function Open-Rcon { param($Properties); return [IO.MemoryStream]::new() }
     function Stop-ServerSafely { param($Identity,$Properties,$Timeout); $script:events.Add('stop'); if ($script:failStop) { throw 'stop timeout' } }
     function Assert-PortsClosed { param($Properties); $script:events.Add('ports-closed') }
@@ -153,6 +162,18 @@ try {
         Assert-True ($ready.Process.Id -eq 1) 'Bekleme döngüsü sunucunun yazmak için açık tuttuğu logu okuyabilmeli.'
         Assert-True ((Get-LogHeader $logRoot) -ne $null) 'Log başlığı sunucu logu tutarken okunabilmeli.'
     } finally { $liveLog.Dispose() }
+    $script:identityFailures = 1
+    $ready = Wait-ServerReady $logRoot @{} '' $since 5 '' @('OtherPlugin') -WarningAction SilentlyContinue
+    Assert-True ($ready.Process.Id -eq 1 -and $script:identityFailures -eq 0) 'RCON log satırından sonra dinlemeye başlarsa bekleme sürmeli.'
+    $script:identityFailures = 99
+    Assert-Throws { Wait-ServerReady $logRoot @{} '' $since 1 '' @('OtherPlugin') -WarningAction SilentlyContinue } 'Kimlik hiç doğrulanamazsa bekleme süre sonunda başarısız olmalı.'
+    $script:identityFailures = 0
+    $heldLog = [IO.File]::Open((Join-Path $logRoot 'logs\latest.log'), 'Open', 'ReadWrite', 'None')
+    try {
+        $held = ''
+        try { $null = Wait-ServerReady $logRoot @{} '' $since 1 '' } catch { $held = $_.Exception.Message }
+        Assert-True ($held -match 'zamanında') 'Tam kilitli log açılış hatası değil, bekleme süresi aşımı olmalı.'
+    } finally { $heldLog.Dispose() }
     [IO.File]::WriteAllText((Join-Path $logRoot 'logs\latest.log'), $validLog + "`n[Server/ERROR]: Failed to start the minecraft server")
     Assert-Throws { Wait-ServerReady $logRoot @{} '' $since 1 '' } 'Gerçek bekleme döngüsü kritik hatada hemen durmalı.'
     function Wait-ServerReady {

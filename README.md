@@ -95,6 +95,14 @@ Stop sonrası hash sapması sessizce yeni taban yapılmaz; dosya yazılmadıysa 
 sunucu açılır, yazıldıysa yalnız bu üç dosya doğrulanmış yedekten geri alınır.
 Yedek veya mevcut dosya doğrulanamazsa otomatik yazma/başlatma durur.
 
+Göçü tamamlanmış sunucuda yalnız JAR güncellemesi ayrı bir yoldur. Plan
+`prepareJarUpdate` ile gerçek dosyalar okunarak üretilir ve NPC veya knowledge
+yazımı tanımlayamaz. `-Mode JarPreview -JarPlan <plan>` sunucuya dokunmaz;
+`-Mode JarDeploy` ayrı kullanıcı onayı, `-ExpectedPlanSha256` ve `-ApproveDeployment`
+ister, oyuncu varsa başlamaz. Korunan dosyalar stop öncesi/sonrası ve açılıştan sonra
+denetlenir; her plan bir kez kullanılır. Hatada yalnız JAR doğrulanmış yedekten geri
+alınır. Göç yapılmamış sunucu bu yolu kullanamaz, üç dosyalı yol JAR planını kabul etmez.
+
 Dağıtım sırası:
 
 1. `gradlew.bat clean build` ve çevrimdışı dağıtım testleri çalışır. Hata varsa

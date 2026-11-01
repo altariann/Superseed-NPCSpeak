@@ -1,8 +1,9 @@
 ﻿#Requires -Version 5.1
 [CmdletBinding(SupportsShouldProcess)]
 param(
-    [ValidateSet('Inspect', 'Build', 'Preview', 'Deploy')][string]$Mode = 'Inspect',
+    [ValidateSet('Inspect', 'Build', 'Preview', 'Deploy', 'JarPreview', 'JarDeploy')][string]$Mode = 'Inspect',
     [string]$MigrationManifest = '',
+    [string]$JarPlan = '',
     [string]$ExpectedPlanSha256 = '',
     [string]$ServerRoot = '',
     [string]$LocalSettingsPath = '',
@@ -23,6 +24,7 @@ if ([string]::IsNullOrWhiteSpace($LocalSettingsPath)) {
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 . (Join-Path $RepoRoot 'scripts\Hybrid-Deployment.ps1')
+. (Join-Path $RepoRoot 'scripts\Jar-Deployment.ps1')
 
 function Resolve-DeploymentServerRoot([string]$ExplicitRoot, [string]$SettingsPath) {
     $configured = $ExplicitRoot
@@ -212,6 +214,7 @@ function Invoke-ProjectBuild([string]$Jdk) {
             if ($LASTEXITCODE -ne 0) { throw "Gradle başarısız (çıkış $LASTEXITCODE). Sunucuya dokunulmadı." }
             & (Join-Path $RepoRoot 'tests\Test-Deployment.ps1')
             & (Join-Path $RepoRoot 'tests\Test-HybridDeployment.ps1')
+            & (Join-Path $RepoRoot 'tests\Test-JarDeployment.ps1')
             & (Join-Path $RepoRoot 'tests\Test-LoreSnapshot.ps1')
             & (Join-Path $RepoRoot 'tests\Test-LorePilot.ps1')
         } finally { Pop-Location }
@@ -265,7 +268,8 @@ function Get-StartupLogStatus([string]$Text, [string[]]$KnownPluginNames = @(), 
         if ((!$namedPlugin -and $firstLine -match '(?i)FAILED TO BIND TO PORT|Failed to (?:start the minecraft server|start server|check session lock|acquire.*lock)|Encountered an unexpected exception|Exception in server tick loop|The server has stopped responding|A single server tick took') -or $firstLine -match '/FATAL\]') {
             $fatal.Add('CRITICAL_SERVER_FAILURE')
         }
-        if (!$namedPlugin -and $firstLine -match '(?i)\b(?:Stopping server|Closing Server|All dimensions are saved)\b') {
+        # "All dimensions are saved" also appears during a normal boot, before Done.
+        if (!$namedPlugin -and $firstLine -match '(?i)\b(?:Stopping server|Closing Server)\b') {
             $fatal.Add('SERVER_STOPPING')
         }
         if ($owner -in @('NPCSpeak', 'Citizens')) {
@@ -322,7 +326,8 @@ function Wait-ServerReady {
     $log = Join-Path $Root 'logs\latest.log'
     while ([datetime]::UtcNow -lt $deadline) {
         if ((Test-Path -LiteralPath $log) -and (Get-Item -LiteralPath $log).LastWriteTimeUtc -ge $Since) {
-            $text = Read-LogText $log
+            # A brief lock during rotation is not a failed boot; the deadline still applies.
+            try { $text = Read-LogText $log } catch [IO.IOException] { Start-Sleep -Seconds 2; continue }
             # Never accept the previous boot's Done/Enabling lines during log rotation.
             if ($OldHeader -and $text.StartsWith($OldHeader)) { Start-Sleep -Seconds 2; continue }
             $status = Get-StartupLogStatus $text $KnownPluginNames $ExpectedHybridMarker
@@ -330,7 +335,8 @@ function Wait-ServerReady {
                 throw "Yeni başlangıçta kritik veya NPCSpeak/Citizens hatası: $($status.FatalReasons -join ', '). Ayrıntılar yerel logs/latest.log dosyasında."
             }
             if ($status.Ready) {
-                $identity = Get-ServerIdentity $Properties $BatText
+                # Listeners can appear just after the log lines; identity failure stays bounded by the deadline.
+                try { $identity = Get-ServerIdentity $Properties $BatText } catch { Start-Sleep -Seconds 2; continue }
                 if ($identity.Process.StartTime.ToUniversalTime() -lt $Since.AddSeconds(-2)) { throw 'Eski işlem başarı olarak kabul edilmedi.' }
                 if ($status.OtherPluginErrorCount -gt 0) {
                     Write-Warning "NPCSpeak/Citizens başlangıcı doğrulandı; diğer pluginlere ait $($status.OtherPluginErrorCount) hata kaydı var. Bunlar geri alma başlatmadı; logs/latest.log dosyasını ayrıca inceleyin."
@@ -352,6 +358,14 @@ function Invoke-Deployment {
         return
     }
     $root = Resolve-DeploymentServerRoot $ServerRoot $LocalSettingsPath
+    # The two transactions never share a plan: a JAR update cannot start a file migration.
+    if ($JarPlan -or $Mode -in @('JarPreview', 'JarDeploy')) {
+        if ($Mode -notin @('JarPreview', 'JarDeploy') -or !$JarPlan -or $MigrationManifest) {
+            throw 'JAR güncellemesi yalnız JarPreview/JarDeploy modu ve yalnız -JarPlan ile çalışır.'
+        }
+        Invoke-JarDeployment -Root $root -ManifestPath $JarPlan -WhatIf:$WhatIfPreference
+        return
+    }
     if ($MigrationManifest -or $Mode -eq 'Preview') {
         if (!$MigrationManifest) { throw 'Önizleme için açık MigrationManifest gerekli.' }
         Invoke-HybridDeployment -Root $root -ManifestPath $MigrationManifest -WhatIf:$WhatIfPreference

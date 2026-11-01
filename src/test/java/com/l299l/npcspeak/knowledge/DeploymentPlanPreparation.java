@@ -111,7 +111,7 @@ public final class DeploymentPlanPreparation {
     private static Map<String, Object> entry(String kind, String target, String oldHash, String candidate, String hash) {
         return Map.of("Kind", kind, "Target", target, "OriginalSha256", oldHash, "Candidate", candidate, "CandidateSha256", hash);
     }
-    private static boolean isNpcSpeak(Path jar) {
+    static boolean isNpcSpeak(Path jar) {
         try (var zip = new ZipFile(jar.toFile())) {
             var entry = zip.getEntry("plugin.yml"); if (entry == null) return false;
             var yaml = new YamlConfiguration(); yaml.loadFromString(new String(zip.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8));
@@ -138,7 +138,7 @@ public final class DeploymentPlanPreparation {
             if (count != expected || zip.getEntry("com/l299l/npcspeak/knowledge/HybridReadiness.class") == null) throw new IllegalArgumentException("Missing production classes/readiness support");
         }
     }
-    private static YamlConfiguration yaml(Path path) throws Exception {
+    static YamlConfiguration yaml(Path path) throws Exception {
         var config = new YamlConfiguration(); config.load(path.toFile()); return config;
     }
     private static Map<String, Object> plain(ConfigurationSection section) {
