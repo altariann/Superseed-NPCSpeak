@@ -1,20 +1,21 @@
 # Proje durumu
 
-Son doğrulama: **1 Kasım 2026, Europe/Istanbul**. Bu dosya güncel durum özetidir;
+Son doğrulama: **1 Kasım 2026 21:32, Europe/Istanbul**. Bu dosya güncel durum özetidir;
 son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS](../../AGENTS.md).
 
 ## Git ve kabul durumu
 
-- Dal: `dev/superseed-automation`. Doğrulanan son uygulama commit'i: `0e115f5`.
-  Ortak hafıza belgelerinin commit'i bunun üzerine gelir; gerçek HEAD'i Git'ten oku.
+- Dal: `dev/superseed-automation`. Doğrulanan son uygulama commit'i: `c08cbf3`.
+  Bu belgelerin commit'i bunun üzerine gelir; gerçek HEAD'i Git'ten oku.
 - [PR #2](https://github.com/altariann/Superseed-NPCSpeak/pull/2) açık;
   head `dev/superseed-automation`, base `dev/superseed-source`.
 - [PR #1](https://github.com/altariann/Superseed-NPCSpeak/pull/1) açık;
   head `dev/superseed-source`, base `master`. Kaynak tabanı korunur.
 - `9b55873` mimari, `aeccff0`/`cd60e32` ilk uygulama,
-  `2589220` oturum/filtre güvenliği, `0e115f5` pilot aracı ve sonuç raporudur.
-- **Güvenli üç dosyalı dağıtım hazırlığı yarım ve commit edilmemiştir.**
-  Mevcut çalışma ağacı, doğrulanmış uygulama commit'inden farklıdır.
+  `2589220` oturum/filtre güvenliği, `0e115f5` pilot aracı ve sonuç raporu,
+  `c08cbf3` üç dosyalı güvenli dağıtım hazırlığıdır.
+- Devralınan yedi taslak dosya tamamlanıp commit'lendi. Çevrimdışı hazırlık bitti;
+  canlı geçiş ayrı kullanıcı onayı bekliyor.
 
 ## Uygulanan mimari
 
@@ -35,11 +36,13 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
 ## Doğrulanan son sonuçlar
 
 - JDK 26.0.2; ana Java hedefi 17 / major 61.
-- **136 Java testi, 0 başarısızlık/hata; 99 PowerShell denetimi**
-  (73 dağıtım + 11 snapshot + 15 pilot). XML raporları ve son başarılı Build logu
-  bu belge turunda salt okunur doğrulandı; kanıt zamanı 1 Kasım 20:43 İstanbul.
-- Bu sayılar **yeni dağıtım taslağını kapsamaz**. Bu belge turunda derleme/test
-  yeniden çalıştırılmadı ve JAR üretilmedi.
+- **143 Java testi, 0 başarısızlık/hata/atlama; 222 PowerShell denetimi**
+  (73 dağıtım + 123 üç dosyalı dağıtım + 11 snapshot + 15 pilot). Temiz
+  `Deploy-Superseed.ps1 -Mode Build` başarılı; kanıt zamanı 1 Kasım 21:30 İstanbul.
+  Java sayısı XML raporlarından okundu. JAR: test sınıfı/wiki yok, major 61,
+  SHA256 `5bddbd93…de91a6`.
+- Üç dosyalı senaryolar sahte sunucu ağacı ve mock yaşam döngüsüyle sınandı.
+  Gerçek RCON/stop/başlatma, oyun içi kabul veya TPS ölçümü değildir.
 - Küçük gerçek Gemma pilotu: 6 yerel rota, 4 tekil inference; aynı digest/üretim
   ayarları, CPU, 4096 bağlam, 160 çıktı tokenı. Retry veya A/B yok.
 - Günlük/karakter/wiki/karışık çağrıları: 20,11 / 6,45 / 12,06 / 10,59 sn.
@@ -53,12 +56,19 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
   ayrı doğrulanmış kendilik kanıtı eksik. İğneleyici/gösterişli ton kalıcı doğrulanmadı.
 - Karşılaştırma, tarih/yıl/gelecek, genel ilişkiler ve karmaşık karışık niyetler
   deterministik kapsamda değil. Serbest sohbetin tüm olguları doğrulanmış sayılmaz.
-- Üç dosyalı dağıtım: JAR + NPC YAML + knowledge.yml birlikte hash/yedek/geri alma
-  kapsamına alınacak; ayrıntılı eksikler HANDOFF'tadır. Yeni Preview yolu hazır sayılmaz.
+- Gerçek dosyalar yalnız okunarak özel plan üretildi; 6 yerel kontrol ve Preview
+  geçti. Kişilikteki eski "başkan adı verilmedi" ifadesi planda **değiştirilmedi**;
+  ayrı içerik kararıdır. Legacy municipality alanı yeni kayıtlarla gölgelenir.
+- Paper yeniden eşleme yaparsa açılış JAR hash'i eşleşmez. Mevcut `.paper-remapped`
+  listesinde NPCSpeak görünmüyor, ama bu oyun içinde kanıtlanmadı; eşleşmezse
+  dağıtım zaman aşımıyla geri alınır.
+- Eski JAR'ın stop kaydı NPC baytlarını değiştirirse işlem yazmadan durur ve özgün
+  sunucu açılır; bu davranış gerçek sunucuda gözlenmedi.
 - **Canlı dağıtım ve oyun içi kabul yapılmadı; bunlara kullanıcı onayı yok.**
-  Önceki pilotta sunucu süreci saptanmadı; bu, şimdiki süreç durumu iddiası değildir.
-- Önceki son kontrolde korunan 9 dosya hash'i değişmedi; canlı/özel 221 wiki
-  dosyası arşivle eşleşti. Bu belge turunda canlı dosyalar yeniden taranmadı.
+  1 Kasım 21:31'de Paper süreci **çalışıyordu**; durdurulmadı. `-Mode Inspect`
+  süreç/BAT eşleşmesini doğruladı. RCON bağlantısı yapılmadı.
+- Plan öncesi/sonrası korunan beş dosyanın (BAT, server.properties, JAR, NPC,
+  knowledge) hash'i aynı kaldı; sunucuda yedek oluşmadı. Wiki yeniden taranmadı.
 
 Ayrıntılar: [mimari](../hybrid-answer-architecture.md),
 [ilk sürüm](../hybrid-answer-results.md),

@@ -86,6 +86,15 @@ BAT ve çalışan işlemin komutu eşleşmezse betik durur; `start.cmd`/AutoPlug
 kendiliğinden seçilmez. Mevcut BAT içeriği, JVM parametreleri ve Java sürümü korunur.
 Başka bir otomatik yeniden başlatıcı dağıtım sırasında devreye girmemelidir.
 
+Hibrit sürümün ilk geçişi JAR, NPC YAML ve `knowledge.yml` dosyalarını tek işlemde
+kurar. Plan `prepareHybridDeployment` ile gerçek dosyalar yalnız okunarak Git
+dışındaki özel klasörde üretilir; `-Mode Preview` sunucuya dokunmadan hash'leri ve
+onaylanacak `Plan SHA256` değerini gösterir. `-Mode Deploy` için bu plan,
+`-MigrationManifest`, `-ExpectedPlanSha256` ve ayrı kullanıcı onayı gerekir.
+Stop sonrası hash sapması sessizce yeni taban yapılmaz; dosya yazılmadıysa özgün
+sunucu açılır, yazıldıysa yalnız bu üç dosya doğrulanmış yedekten geri alınır.
+Yedek veya mevcut dosya doğrulanamazsa otomatik yazma/başlatma durur.
+
 Dağıtım sırası:
 
 1. `gradlew.bat clean build` ve çevrimdışı dağıtım testleri çalışır. Hata varsa

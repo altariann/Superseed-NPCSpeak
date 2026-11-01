@@ -14,8 +14,10 @@ Güncel kullanıcı talimatı bu notlardan önceliklidir; notlar onay belgesi de
 | İkinci doğrulama modeli veya otomatik retry yok | CPU maliyeti ve ikinci modelin de yanılma riski var. Eski küçük pilot onayı sınırsız yeni inference izni değildir. |
 | Son teslim güncel ziyaret ve ana thread ile bağlıdır | Yerel tamamlanmış future de aynı teslim kuyruğunu kullanır. Pending erken bırakılmaz; eski giriş/yanıt/preview/timeout yeni görüşmeye sızmaz. |
 | Eski YAML ve çalışan sistem korunur | Yeni şema varsa geniş legacy municipality retrieval'da gölgelenir. Yetki/yetenek sınırlamalarını geçişte kaybetme; bozuk reload'da son iyi snapshot'ı koru. |
-| Dağıtım üç dosyalı ve kapalı sunucuda doğrulanmış olmalıdır | JAR/NPC/knowledge birlikte hash ve yedek kapsamına girer. Bu geliştirme henüz taslaktır; hash drift'ini sessizce kabul etme, zorla süreç sonlandırma. |
-| Rollback yalnız onaylı dosyaları kapsar | Citizens, wiki, mesaj, oyuncu hafızası ve dünyayı topluca geri sarma. Güvenli kapanış/geri alma doğrulanamıyorsa riskli yazmaya devam etme. |
+| Dağıtım üç dosyalı ve kapalı sunucuda doğrulanmış olmalıdır | JAR/NPC/knowledge birlikte hash ve yedek kapsamına girer. Hash drift'ini sessizce kabul etme, zorla süreç sonlandırma. |
+| Stop sonrası hata dosya durumuna göre ayrılır | Dosya yazılmadıysa veya geri yazım doğrulandıysa özgün sunucu aynı BAT ile açılır; sunucu sebepsiz kapalı bırakılmaz. Kapanış doğrulanamadıysa hiçbir şey başlatılmaz. |
+| Rollback yalnız onaylı dosyaları kapsar | Citizens, wiki, mesaj, oyuncu hafızası ve dünyayı topluca geri sarma. Güvenli kapanış/geri alma doğrulanamıyorsa riskli yazmaya devam etme. Makbuzsuz NPC değişikliği dış düzenleme sayılır ve ezilmez. |
+| Plan kişilik metnini kendiliğinden değiştirmez | Eski kişilik cümlesi ayrı içerik kararıdır; değişecekse reçetede açık eski/yeni metinle yeni plan üretilir. |
 | JDK 26, ana hedef Java 17; gerçek test kanıtı | Yeni taslağı önceki 136/99 sonucuyla başarılı gösterme. Sahte Bukkit/sunucu testleri oyun içi kabul veya TPS ölçümü değildir. |
 | Tek çalışma ağacında tek yazan ajan | Önce Git durumu, STATE ve HANDOFF okunur. Önceki ajanın yarım işini resetleme/ezme; doğrulanmış işi gerekmedikçe tekrarlama. |
 | Mevcut dal ve PR ilişkisi korunur | PR #2, PR #1'in `dev/superseed-source` tabanındadır. Küçük düzeltmeler için yeni PR açma; master'a otomatik push/merge yapma. |

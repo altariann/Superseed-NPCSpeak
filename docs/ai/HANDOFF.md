@@ -1,72 +1,53 @@
 # Ajan devri
 
-- Son çalışan ajan: **Codex**. Son güncelleme: **1 Kasım 2026, Europe/Istanbul**.
+- Son çalışan ajan: **Claude**. Son güncelleme: **1 Kasım 2026 21:32, Europe/Istanbul**.
 - Dal: `dev/superseed-automation`; açık geliştirme PR'ı #2, kaynak tabanı PR #1.
-- Doğrulanan uygulama tabanı: `0e115f5692fb064ebe66a5a8b99d74ab6a15484b`.
-  Bu belge aşaması bunun üzerine yalnız dokümantasyon commit'i ekler.
+- Doğrulanan uygulama commit'i: `c08cbf36cb156678b0b776a8f35046951a261533`.
   Belge commit'ini `git log -1 -- docs/ai/HANDOFF.md` ile, gerçek HEAD'i ayrıca doğrula.
 
 ## Bu aşamada tamamlanan
 
-- Codex/Claude ortak STATE, HANDOFF, DECISIONS ve kısa CLAUDE başlangıcı kuruldu;
-  mevcut AGENTS kuralları korunarak ortak hafızaya yönlendirme eklendi.
-- Git durumu, PR #1/#2 ilişkisi, 136 başarılı Java testi ve 99 PowerShell
-  denetiminin eski başarılı kanıtları okundu. Yeni taslağın test edilmediği ayrıldı.
-- Bu aşama yalnız belgelerdir: uygulama/taslak dosyaları, gerçek sunucu,
-  yapılandırma ve JAR değiştirilmez; yeni inference veya Build çalıştırılmaz.
+- Codex'ten devralınan yedi dosya korunarak tamamlandı; hepsi `c08cbf3` içinde.
+  Yeni `tests/Test-HybridDeployment.ps1` Build yoluna bağlandı.
+- Gerçek derleme `DeploymentPlanPreparation.java` içindeki `var` hatasını doğruladı;
+  düzeltildi. Ayrıca satır başı `-or` kullanımı Windows PowerShell 5.1'de tüm
+  `Deploy-Superseed.ps1` modlarını bozuyordu; düzeltildi.
+- Helper düzeltmeleri: stop sonrası yazımsız hatada özgün sunucuyu açma, ayrı son
+  günlük durumları, `$input` çakışması, son NPC makbuzunu seçme, Preview'da plan hash'i.
+- `-Mode Build` temiz geçti: **143 Java testi, 0 hata; 222 PowerShell denetimi**
+  (73 + 123 yeni + 11 + 15). Log: `.local-safety/build-hybrid-deploy-6fe22754….log`.
+- Sahte sunucuda sınananlar: başarılı dağıtım, Preview/WhatIf, hash ve plan kapıları,
+  junction, bozuk başlangıç, kısmi yazım, stop başarısızlığı, stop sonrası drift,
+  makbuz/dış düzenleme ayrımı ve bozuk rollback yedeği.
 
-## Devralınacak yarım iş
+## Canlı duruma dokunulmadı
 
-Önceki görev: ilk canlı testten önce JAR ile iki yapılandırmanın birlikte güvenli
-dağıtımını hazırlamak. **Yalnız geliştirme/çevrimdışı hazırlık onaylıdır; canlı
-stop, JAR/config değiştirme ve yeniden başlatma onaylı değildir.**
+- Paper süreci çalışıyor; stop/restart, RCON bağlantısı, JAR/config yazımı yapılmadı.
+  `-Mode Inspect`, plan üretimi ve Preview yalnız okudu; korunan beş dosyanın hash'i aynı.
+- Sahte sunucu testleri gerçek stop/açılış, Citizens veya oyun içi kabul kanıtı değildir.
 
-Çalışma ağacında korunması gereken **commit edilmemiş** dosyalar:
+## Hazır özel plan
 
-| Dosya | Taslak amacı |
-| --- | --- |
-| `Deploy-Superseed.ps1` | MigrationManifest/ExpectedPlanSha256, Preview ve yeni açılış kanıtı bağlantısı |
-| `build.gradle.kts` | Opt-in `prepareHybridDeployment` görevi |
-| `src/main/java/com/l299l/npcspeak/npc/NpcManager.java` | Yüklenen kimlik/şema için içeriksiz açılış kanıtı |
-| `scripts/Hybrid-Deployment.ps1` | Üç dosyalı hash, kilit, yedek, stop, uygulama ve rollback taslağı |
-| `src/main/java/com/l299l/npcspeak/knowledge/HybridReadiness.java` | Artifact/knowledge/kimlik/yön fingerprint'i |
-| `src/test/java/com/l299l/npcspeak/knowledge/DeploymentPlanPreparation.java` | Özel aday/diff/manifest hazırlama; üretim sınıflarıyla offline kontrol |
-| `src/test/java/com/l299l/npcspeak/knowledge/DeploymentPlanPreparationTest.java` | Henüz çalıştırılmamış yeni hazırlama testleri |
+- Klasör: `.local-safety/deployment-plans/plan-20261101-213104` (Git dışı).
+- Plan SHA256: `CCD85747620A4FF493E04349200E4AB219C44AC12E9E95B5AFEB1C46215B3668`.
+- Plan canlı hash'lere bağlıdır; NPC/knowledge/JAR/BAT/server.properties değişirse
+  geçersiz olur. Üzerine yazma; yeni klasöre yeni plan üret, Preview'ı yinele.
+- Kişilik metni değiştirilmedi (`personaOld` boş). Değişecekse kullanıcı metni
+  onaylar, reçete güncellenir ve yeni plan hash'i alınır.
 
-Bu dosyalar bu makinenin çalışma ağacındadır; başka klonda/GitHub'da var olduklarını
-varsayma. Silme, resetleme, otomatik yeniden üretip üzerine yazma veya belge commit'ine
-katma. Başka ajan hâlâ yazıyorsa önce devri koordine et; eşzamanlı düzenleme yapma.
+## Sonraki adım
 
-## Önemli bulgular ve eksikler
+1. Kullanıcı `npc.binding.diff`, `knowledge.diff` ve kişilik kararını incelesin.
+2. Oyuncu etkisi için zaman seçip **açıkça canlı dağıtım onayı** versin. Notlar,
+   `-ApproveDeployment` veya bu devir onay yerine geçmez.
+3. Onay gelirse önce Inspect + Preview'ı yinele, plan hash'i aynıysa çalıştır:
 
-- Taslak **henüz derlenmedi/test edilmedi**; son 136/99 kanıtı eski tamamlanmış
-  uygulamaya aittir. Test sayısını yeni dosyadaki testleri sayarak artırma.
-- Statik okumada `DeploymentPlanPreparation.java` içinde `var originalNpc = …,
-  originalKnowledge = …;` birleşik bildirimi görüldü. Java `var` ile bu biçim
-  kullanılamaz; sonraki kod aşamasında düzelt ve gerçek derlemeyle doğrula.
-- Yeni helper için başarılı dağıtım, bozuk başlangıç, hash farkı, kısmi yazım,
-  güvenli kapanamama ve rollback bozulması PowerShell senaryoları henüz eklenmedi.
-- NPC normal kapanış/açılışta yeniden kaydedilebilir. Stop sonrası hash drift'i
-  sessizce yeni taban yapılmamalı. Açılışın ürettiği NPC hash makbuzu ile dış
-  düzenlemeyi ayıran taslak ve rollback kontrolleri özellikle incelenmeli.
-- Tam kapalı sunucu + üç hedefin özel kilidi; tüm yedeklerin ilk geri yazmadan
-  önce doğrulanması; hata halinde daha fazla yazmama garantileri sınanmalı.
-- Mevcut BAT/JVM, Citizens 313/skin/konum, wiki, mesaj, hafıza ve dünya korunmalı.
-  Eski kişilikteki güncel bilgiyle çelişen cümle ayrı özel diff olarak gösterilmeli.
+   ```powershell
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Deploy-Superseed.ps1 -Mode Deploy -ServerRoot "<ServerRoot>" -MigrationManifest "<plan>\deployment-plan.json" -ExpectedPlanSha256 CCD85747620A4FF493E04349200E4AB219C44AC12E9E95B5AFEB1C46215B3668 -ApproveDeployment -RconFirewallVerified
+   ```
 
-## Sonraki uygulama adımı
-
-1. AGENTS/STATE/DECISIONS ve `git status --short --branch` oku; bu yedi dosyanın
-   mevcut diff'ini devral. Güncel kullanıcı kapsamı yalnız belgeyse kod işine girme.
-2. Kod aşaması sürdürüldüğünde taslağı derlenebilir hâle getir; sahte sunucu
-   transaction/rollback testlerini tamamla. Eski dağıtım uyumluluğunu koru.
-3. JDK 26 ile yalnız `Deploy-Superseed.ps1 -Mode Build` yolunda gerçek Java ve
-   PowerShell testlerini çalıştır; yeni sonuçları açıkça kaydet. Inference gerekmez.
-4. Gerçek dosyaları yalnız okuyarak yeni özel aday/manifest/diff üret; salt okunur
-   önizlemeyi doğrula. Sonraki onay için gerçek hash'lere bağlı tam komutu ve kısa
-   kontrol listesini raporla; henüz doğrulanmamış bir canlı komut uydurma.
-5. Anlamlı aşamayı ayrı commit'le PR #2'ye taşı, HANDOFF/STATE'i güncelle ve
-   gerçek dağıtım öncesinde açık kullanıcı onayını bekle.
+4. Sonra oyun içi kabul: B03, Doğan'ın makamı/bağlılığı, Citizens 313, skin ve konum.
+5. Açık kalanlar için [STATE](STATE.md) bölümüne bak.
 
 Önceki pilotun ham kanıtları ve adayları yalnız yerel özel alandadır. Gerekirse
 yerinde incele; gizli dosya içeriklerini bu notlara/Git'e kopyalama.
