@@ -143,9 +143,11 @@ içi kontrollerin yerini tutmaz. Lore değişiklikleri aşağıda açıklanmış
 
 ### Superseed v5: kaynaklara bağlı lore araması ve yönetici tanısı
 
-**B03 durumu:** atomik belediye kayıtları ve kişi/ilişki seçimi çevrimdışı
-doğrulandı. Yeni Gemma isteği gönderilmedi; yeniden test kullanıcı onayını
-bekliyor. Eski/yeni kaynak farkları, 89 Java testi ve 750 sorgu karşılaştırması
+**B03 durumu:** atomik belediye kayıtları çevrimdışı doğrulandı; kullanıcı
+onayıyla yapılan [tek Gemma tekrarı da başarısızdır](docs/b03-repeat-results.md).
+Makamın öznesi ve kaynaksız destek/koordinasyon ilişkisi sorunu sürüyor.
+Başka model vakası veya canlı dağıtım çalıştırılmadı. Eski/yeni kaynak farkları,
+89 Java testi ve 750 sorgu karşılaştırması
 [B03 inceleme raporunda](docs/b03-offline-review.md).
 
 `knowledge.yml` içindeki yeni `municipal-records` listesi şu alanları kullanır:

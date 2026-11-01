@@ -1,7 +1,9 @@
 # B03 — kaynak incelemesi ve çevrimdışı düzeltme
 
-1 Kasım 2026. **Yeni model çağrısı yapılmadı.** B03 pilot hatası açık; yeniden
-inference için kullanıcı onayı bekleniyor. Aşama C ve canlı dağıtım başlamadı.
+1 Kasım 2026. Bu belge model tekrarı öncesindeki çevrimdışı çalışmayı kaydeder.
+Sonrasında kullanıcı onayıyla yapılan **tek B03 tekrarı da başarısızdır**;
+[karşılaştırma raporu](b03-repeat-results.md). B03 hatası açık kalır.
+Aşama C ve canlı dağıtım başlamadı.
 Ham yanıt, eski/yeni JSON kaynakları, prompt'lar ve manifestler yalnız Git'in
 yok saydığı özel yerel değerlendirme alanında tutulur.
 
@@ -116,6 +118,6 @@ verdi; beklentiler YAML'den önceden belirlendi, asistan kaynak incelemesi etike
 
 Türkçe niyet/ek desteği sınırlı ve deterministik kurallara dayanır; tam bir
 dil çözümleyicisi değildir. Bu çevrimdışı testler modelin yanıt davranışını
-ölçmez. Aynı B03 sorusunun mevcut model/digest/ayarlarla yeniden gönderilmesi
-yalnız kullanıcı onayından sonra yapılacak; tek başarılı yanıt yeterli kanıt
-sayılmayacak. Sunucu stop/başlatma, JAR ve gerçek ayar değişikliği yapılmadı.
+ölçmez. Sonradan onaylanan tek model tekrarı ayrı rapordadır; tek başarılı
+yanıt yeterli kanıt sayılmaz. Sunucu stop/başlatma, JAR ve gerçek ayar
+değişikliği yapılmadı.

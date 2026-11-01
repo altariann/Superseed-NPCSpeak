@@ -4,7 +4,8 @@
 canlı dağıtıma veya otomatik tekrar koşusuna geçilmedi.
 
 Sonraki çevrimdışı inceleme ve atomik kayıt düzeltmesi
-[B03 raporundadır](b03-offline-review.md). Yeni B03 model çağrısı yapılmadı.
+[B03 raporundadır](b03-offline-review.md). Sonradan onaylanan
+[tek B03 tekrarı da başarısızdır](b03-repeat-results.md); diğer sorular çalıştırılmadı.
 
 ## Deney koşulları
 
