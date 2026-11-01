@@ -93,9 +93,32 @@ public final class KnowledgeBase {
             aliases.add(new LoreEngine.Alias(entry.getKey(), stringList(section.get("names")), section.getString("note", "")));
         }
         List<LoreEngine.VerifiedFact> facts = new ArrayList<>();
+        Object municipalRecords = config.get("municipal-records");
+        if (municipalRecords != null) {
+            if (!(municipalRecords instanceof List<?> list) || list.isEmpty()) throw new IllegalArgumentException("Nonempty municipal-records required");
+            Set<String> ids = new HashSet<>();
+            for (Object raw : list) {
+                if (!(raw instanceof Map<?, ?> record) || !(record.get("id") instanceof String id) || id.isBlank() || !ids.add(id)
+                        || !(record.get("text") instanceof String text) || text.isBlank()
+                        || !(record.get("type") instanceof String type) || !Set.of("office", "relationship", "fact").contains(type)
+                        || !(record.get("current") instanceof Boolean current)) throw new IllegalArgumentException("Invalid municipal record");
+                List<String> subjects = stringList(record.get("subjects"));
+                List<String> offices = stringList(record.get("offices"));
+                if (subjects.isEmpty() || subjects.stream().anyMatch(String::isBlank)
+                        || subjects.stream().map(LoreEngine::normalize).distinct().count() != subjects.size()
+                        || !type.equals("relationship") && subjects.size() != 1
+                        || type.equals("office") && offices.isEmpty()
+                        || type.equals("relationship") && subjects.size() != 2
+                        || !type.equals("office") && !offices.isEmpty() || offices.stream().anyMatch(String::isBlank)) {
+                    throw new IllegalArgumentException("Invalid municipal participants or offices");
+                }
+                facts.add(new LoreEngine.VerifiedFact(id, text.strip(), subjects, stringList(record.get("keywords")), current, type, offices, true));
+            }
+        }
         String municipality = config.getString("municipality", "");
         int municipalityPart = 0;
-        for (String chunk : LoreEngine.chunks(municipality, 350)) {
+        // Explicit migration: keep the legacy field readable, but never mix its broad text into atomic records.
+        for (String chunk : LoreEngine.chunks(municipalRecords == null ? municipality : "", 350)) {
             facts.add(new LoreEngine.VerifiedFact("municipality-" + ++municipalityPart, chunk, List.of(), List.of(), true));
         }
         Object rawFacts = config.get("verified-facts");

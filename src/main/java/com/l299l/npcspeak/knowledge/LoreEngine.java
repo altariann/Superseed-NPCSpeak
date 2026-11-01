@@ -37,8 +37,14 @@ public final class LoreEngine {
     public record Alias(String canonical, List<String> names, String note) {
         public Alias { names = List.copyOf(names); }
     }
-    public record VerifiedFact(String id, String text, List<String> subjects, List<String> keywords, boolean current) {
-        public VerifiedFact { subjects = List.copyOf(subjects); keywords = List.copyOf(keywords); }
+    public record VerifiedFact(String id, String text, List<String> subjects, List<String> keywords, boolean current,
+                               String type, List<String> offices, boolean municipal) {
+        public VerifiedFact {
+            subjects = List.copyOf(subjects); keywords = List.copyOf(keywords); offices = List.copyOf(offices);
+        }
+        public VerifiedFact(String id, String text, List<String> subjects, List<String> keywords, boolean current) {
+            this(id, text, subjects, keywords, current, "fact", List.of(), false);
+        }
     }
     private record Passage(String key, String title, String source, String text, Set<String> terms, int number, String via) {}
     private record Name(String key, String label, List<String> words, boolean alias) {}
@@ -134,7 +140,14 @@ public final class LoreEngine {
         passages.forEach(passage -> counts.merge(passage.title(), 1L, Long::sum));
         return Map.copyOf(counts);
     }
-    public String persona(String id) { return settings.enabled() ? personas.getOrDefault(id, "") : ""; }
+    public String persona(String id) {
+        if (!settings.enabled()) return "";
+        if (personas.containsKey(id)) return personas.get(id);
+        // Resolve only separator variants of a configuration key, never NPC entity identity.
+        String key = id.replace('-', '_');
+        var matches = personas.entrySet().stream().filter(entry -> entry.getKey().replace('-', '_').equals(key)).toList();
+        return matches.size() == 1 ? matches.get(0).getValue() : "";
+    }
 
     public Result retrieve(String question) {
         if (!settings.enabled()) return empty("DISABLED");
@@ -153,6 +166,7 @@ public final class LoreEngine {
         Set<String> query = new TreeSet<>(queryWords);
         query.removeAll(STOP);
         if (query.isEmpty()) return empty("EMPTY_QUERY");
+        MunicipalSelection municipal = municipalSelection(queryWords);
         List<Hit> hits = new ArrayList<>();
         for (Name name : names) {
             // A common word alone can name its own explicitly indexed article, but cannot
@@ -196,6 +210,7 @@ public final class LoreEngine {
         Map<Candidate, String> candidateEntities = new HashMap<>();
         for (Passage passage : passages) {
             List<String> reasons = new ArrayList<>();
+            if (municipal.verifiedOnly()) reasons.add("REJECT_REQUIRES_VERIFIED_MUNICIPAL_RECORD");
             boolean direct = entities.contains(passage.key());
             long matched = informative.stream().filter(term -> contains(passage.terms(), term)).count();
             double coverage = informative.isEmpty() ? 0 : (double) matched / informative.size();
@@ -231,15 +246,14 @@ public final class LoreEngine {
         int verifiedCount = 0;
         // Explicitly verified records always receive the context budget before wiki text.
         for (VerifiedFact fact : facts) {
-            boolean relevant = fact.subjects().stream().anyMatch(subject -> !positions(queryWords, words(subject)).isEmpty())
+            boolean relevant = fact.municipal() ? municipal.records().contains(fact) : !municipal.verifiedOnly() && (fact.subjects().stream().anyMatch(subject -> !positions(queryWords, words(subject)).isEmpty())
                     || fact.keywords().stream().anyMatch(keyword -> !positions(queryWords, words(keyword)).isEmpty())
                     || (fact.subjects().isEmpty() && fact.keywords().isEmpty() && query.stream().anyMatch(term ->
-                            term.length() >= 3 && contains(terms(fact.text()), term)));
-            if (relevant && append(data, source(fact.current() ? "CURRENT_VERIFIED_RECORD" : "VERIFIED_RECORD",
-                    fact.id(), "knowledge.yml", fact.text()), settings.maxChars())) verifiedCount++;
+                            term.length() >= 3 && contains(terms(fact.text()), term))));
+            if (relevant && append(data, factSource(fact), settings.maxChars())) verifiedCount++;
         }
         for (Alias alias : aliases) {
-            if (entities.contains(normalize(alias.canonical()))) {
+            if (!municipal.verifiedOnly() && entities.contains(normalize(alias.canonical()))) {
                 String text = alias.note().isBlank() ? "Same entity names: " + String.join(", ", aliasLabels(alias)) : alias.note();
                 if (append(data, source("VERIFIED_NAME_RELATION", alias.canonical(), "knowledge.yml", text), settings.maxChars())) verifiedCount++;
             }
@@ -277,10 +291,79 @@ public final class LoreEngine {
             decisions.put(candidate, new Candidate(candidate.title(), candidate.source(), candidate.passage(), candidate.score(),
                     candidate.coverage(), reasons, selected, selected ? candidate.passedExcerpt() : "", candidate.viaWikiRedirect()));
         }
-        String status = verifiedCount + wikiCount > 0 ? "MATCHED" :
+        String status = verifiedCount + wikiCount > 0 ? "MATCHED" : municipal.verifiedOnly() ? "NO_VERIFIED_MUNICIPAL_RECORD" :
                 ranked.stream().anyMatch(candidate -> candidate.reasons().stream().noneMatch(reason -> reason.startsWith("REJECT_")))
                         ? "NO_CONTEXT_ROOM_OR_WIKI_DISABLED" : "NO_RELEVANT_SOURCE";
         return new Result(status, data.toString(), ranked.stream().map(decisions::get).toList(), List.copyOf(entities), verifiedCount, wikiCount);
+    }
+
+    private record MunicipalSelection(Set<VerifiedFact> records, boolean verifiedOnly) {}
+
+    private MunicipalSelection municipalSelection(List<String> query) {
+        List<VerifiedFact> records = facts.stream().filter(VerifiedFact::municipal).toList();
+        if (records.isEmpty()) return new MunicipalSelection(Set.of(), false);
+        boolean relationship = query.stream().anyMatch(word -> word.startsWith("iliski") || word.startsWith("bagli")
+                || Set.of("ust", "ustu", "amir", "amiri", "rapor").contains(word) || word.startsWith("hiyerarsi"));
+        Set<String> people = new TreeSet<>();
+        Set<Integer> personWords = new HashSet<>();
+        for (VerifiedFact fact : records) for (String subject : fact.subjects()) for (String subjectLabel : subjectLabels(subject)) {
+            List<String> label = words(subjectLabel);
+            for (int start : positions(query, label)) {
+                int end = start + label.size();
+                boolean longerTitle = names.stream().anyMatch(name -> name.words().size() > label.size()
+                        && positions(query, name.words()).stream().anyMatch(at -> at <= start && at + name.words().size() >= end));
+                if (!longerTitle) {
+                    people.add(normalize(subject));
+                    for (int i = start; i < end; i++) personWords.add(i);
+                }
+            }
+        }
+        boolean historical = false;
+        for (int i = 0; i < query.size(); i++) if (!personWords.contains(i)) {
+            String word = query.get(i);
+            if (Set.of("eskiden", "eski", "tarihsel", "gecmiste").contains(word) || word.matches("[12][0-9]{3}")) historical = true;
+        }
+        List<String> offices = records.stream().flatMap(fact -> fact.offices().stream()).distinct()
+                .filter(office -> !positions(query, words(office)).isEmpty()).toList();
+        boolean roleQuestion = !offices.isEmpty() || query.stream().anyMatch(word -> word.startsWith("gorev") || word.startsWith("makam")
+                || word.equals("kim") || word.equals("kimdir"));
+        boolean unresolvedPair = people.size() < 2 && query.stream().anyMatch(word -> word.equals("ile") || word.equals("ve") || word.startsWith("arasi"));
+        // Municipal relationship answers require explicit participants, never co-occurrence or a wiki inference.
+        Set<VerifiedFact> chosen = new LinkedHashSet<>();
+        for (VerifiedFact fact : records) {
+            if (fact.current() == historical) continue;
+            Set<String> subjects = new TreeSet<>(); fact.subjects().forEach(subject -> subjects.add(normalize(subject)));
+            boolean personMatch = !people.isEmpty() && subjects.containsAll(people);
+            boolean reporting = query.stream().anyMatch(word -> word.startsWith("bagli"));
+            boolean directional = reporting || query.stream().anyMatch(word -> word.startsWith("amir") || Set.of("ust", "ustu").contains(word));
+            if (personMatch && directional && people.size() == 1) {
+                boolean inverse = reporting && query.contains("kim");
+                personMatch = people.contains(normalize(fact.subjects().get(inverse ? fact.subjects().size() - 1 : 0)));
+            }
+            boolean relevant;
+            if (relationship) relevant = !unresolvedPair && fact.type().equals("relationship") && personMatch
+                    && (fact.keywords().isEmpty() || fact.keywords().stream().anyMatch(keyword -> !positions(query, words(keyword)).isEmpty()));
+            else if (fact.type().equals("relationship")) relevant = false;
+            else if (!people.isEmpty()) relevant = subjects.stream().anyMatch(people::contains)
+                    && (!roleQuestion || fact.type().equals("office"));
+            else relevant = fact.type().equals("office") && fact.offices().stream().anyMatch(offices::contains);
+            if (relevant) chosen.add(fact);
+        }
+        boolean explicitNameRelation = aliases.stream().anyMatch(alias -> aliasLabels(alias).stream()
+                .filter(label -> !positions(query, words(label)).isEmpty()).count() >= 2);
+        boolean explicitOtherFact = facts.stream().filter(fact -> !fact.municipal()).anyMatch(fact ->
+                fact.subjects().stream().anyMatch(subject -> !positions(query, words(subject)).isEmpty())
+                        && fact.keywords().stream().anyMatch(keyword -> !positions(query, words(keyword)).isEmpty()));
+        boolean verifiedOnly = relationship && (!people.isEmpty() || !explicitNameRelation && !explicitOtherFact)
+                || (!historical && (!offices.isEmpty() || !people.isEmpty() && roleQuestion));
+        return new MunicipalSelection(Set.copyOf(chosen), verifiedOnly);
+    }
+
+    private List<String> subjectLabels(String subject) {
+        List<String> labels = new ArrayList<>(); labels.add(subject);
+        aliases.stream().filter(alias -> normalize(alias.canonical()).equals(normalize(subject)))
+                .forEach(alias -> labels.addAll(alias.names()));
+        return labels;
     }
 
     private static Result empty(String status) { return new Result(status, "", List.of(), List.of(), 0, 0); }
@@ -288,6 +371,16 @@ public final class LoreEngine {
         if (target.length() + text.length() > max) return false;
         target.append(text);
         return true;
+    }
+    private static String factSource(VerifiedFact fact) {
+        String kind = fact.current() ? "CURRENT_VERIFIED_RECORD" : "VERIFIED_RECORD";
+        if (!fact.municipal()) return source(kind, fact.id(), "knowledge.yml", fact.text());
+        Map<String, Object> object = new LinkedHashMap<>();
+        object.put("kind", kind); object.put("title", fact.id()); object.put("source", "knowledge.yml");
+        object.put("recordType", fact.type()); object.put("subjects", fact.subjects());
+        if (!fact.offices().isEmpty()) object.put("offices", fact.offices());
+        object.put("text", fact.text());
+        return JSON.toJson(object) + "\n";
     }
     private static String source(String kind, String title, String origin, String text) {
         return source(kind, title, origin, text, "");

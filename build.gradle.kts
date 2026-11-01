@@ -48,6 +48,7 @@ tasks.register<JavaExec>("evaluateLore") {
     args("--mode", providers.gradleProperty("loreMode").getOrElse("run"),
          "--data", providers.gradleProperty("loreData").getOrElse(""),
          "--cases", providers.gradleProperty("loreCases").getOrElse(""),
+         "--evidence-data", providers.gradleProperty("loreEvidenceData").getOrElse(""),
          "--output", providers.gradleProperty("loreOutput").getOrElse(""))
 }
 

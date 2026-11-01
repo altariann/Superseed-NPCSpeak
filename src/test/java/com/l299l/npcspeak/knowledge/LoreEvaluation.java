@@ -27,7 +27,10 @@ public final class LoreEvaluation {
         if (output.startsWith(data) || data.startsWith(output)) throw new IllegalArgumentException("Data and reports must be separate directories");
         Files.createDirectory(output); // never overwrite an earlier run
         if ("inventory".equals(flags.get("--mode"))) inventory(data, output);
-        else if ("run".equals(flags.get("--mode"))) evaluate(data, absolute(flags.get("--cases")), output);
+        else if ("run".equals(flags.get("--mode"))) {
+            String evidence = flags.get("--evidence-data");
+            evaluate(data, absolute(flags.get("--cases")), output, evidence == null || evidence.isBlank() ? data : absolute(evidence));
+        }
         else throw new IllegalArgumentException("Expected inventory or run mode");
     }
 
@@ -152,9 +155,13 @@ public final class LoreEvaluation {
     }
 
     static void evaluate(Path data, Path caseFile, Path output) throws Exception {
+        evaluate(data, caseFile, output, data);
+    }
+
+    static void evaluate(Path data, Path caseFile, Path output, Path evidenceData) throws Exception {
         LoreEngine engine = KnowledgeBase.load(data);
         Set<String> titles = engine.articles().stream().map(LoreEngine.Article::title).collect(Collectors.toSet());
-        List<Case> cases = loadCases(caseFile, data, titles); // expectations frozen before the first retrieve call
+        List<Case> cases = loadCases(caseFile, evidenceData, titles); // expectations frozen before the first retrieve call
         List<LoreEngine.Article> reversed = new ArrayList<>(engine.articles()); Collections.reverse(reversed);
         LoreEngine alternative = engine.reindex(reversed);
         Map<String, int[]> groups = new TreeMap<>(), reviews = new TreeMap<>();
@@ -185,6 +192,9 @@ public final class LoreEvaluation {
         summary.put("deterministic", deterministic); summary.put("p50Millis", millis.get((millis.size() - 1) / 2));
         summary.put("p95Millis", millis.get(Math.min(millis.size() - 1, (int) Math.ceil(millis.size() * .95) - 1)));
         summary.put("casesSha256", sha(Files.readAllBytes(caseFile)));
+        summary.put("separateEvidenceProfile", !data.equals(evidenceData));
+        summary.put("evidenceKnowledgeSha256", sha(Files.readAllBytes(evidenceData.resolve("knowledge.yml"))));
+        summary.put("retrievalKnowledgeSha256", sha(Files.readAllBytes(data.resolve("knowledge.yml"))));
         summary.put("settings", engine.settings());
         try (var stream = LoreEngine.class.getResourceAsStream("LoreEngine.class")) { summary.put("engineClassSha256", sha(Objects.requireNonNull(stream).readAllBytes())); }
         summary.put("meaning", "Agreement with labelled expectations, NOT human-verified accuracy unless explicitly HUMAN_VERIFIED.");

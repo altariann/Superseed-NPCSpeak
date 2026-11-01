@@ -43,4 +43,25 @@ class LoreEvaluationTest {
         assertTrue(summary.get("meaning").getAsString().contains("NOT human-verified"));
         assertThrows(FileAlreadyExistsException.class, () -> LoreEvaluation.evaluate(root, casesFile, output));
     }
+    @Test void migratedProfileKeepsFrozenEvidenceAndReportsLiteralMismatchInsteadOfRewritingExpectation() throws Exception {
+        Path original = Files.createDirectory(root.resolve("original"));
+        Path migrated = Files.createDirectory(root.resolve("migrated"));
+        Files.writeString(original.resolve("knowledge.yml"), "municipality: 'Example is mayor.'\n");
+        Files.writeString(migrated.resolve("knowledge.yml"), "municipality: 'Mayor: Example.'\n");
+        Path cases = root.resolve("cases.json");
+        Files.writeString(cases, """
+                [{"id":"one","group":"migration","query":"Example kim?","reviewStatus":"GENERATED_UNREVIEWED",
+                "allowedTitles":[],"requiredTitles":[],"noSources":false,"requiredEvidence":["Example is mayor."],
+                "requiredKinds":[],"forbiddenKinds":[],"evidenceFile":"knowledge.yml","evidenceQuote":"Example is mayor."}]
+                """);
+        String frozen = Files.readString(cases);
+        assertThrows(IllegalArgumentException.class, () -> LoreEvaluation.evaluate(migrated, cases, Files.createDirectory(root.resolve("invalid"))));
+        Path output = Files.createDirectory(root.resolve("valid"));
+        LoreEvaluation.evaluate(migrated, cases, output, original);
+        var summary = JsonParser.parseString(Files.readString(output.resolve("summary.json"))).getAsJsonObject();
+        assertTrue(summary.get("separateEvidenceProfile").getAsBoolean());
+        assertEquals(0, summary.get("passed").getAsInt());
+        assertTrue(Files.readString(output.resolve("results.jsonl")).contains("REQUIRED_EVIDENCE_MISSING"));
+        assertEquals(frozen, Files.readString(cases));
+    }
 }
