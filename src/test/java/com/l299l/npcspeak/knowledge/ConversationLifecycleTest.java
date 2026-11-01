@@ -228,6 +228,31 @@ class ConversationLifecycleTest {
             assertTrue(KnowledgeBase.reloadFrom(root));
         }
     }
+    @Test void typingIndicatorAppearsOnlyWhenAModelIsActuallyCalled() throws Exception {
+        setup(0);
+        Files.writeString(root.resolve("knowledge.yml"), """
+                municipal-records:
+                  - {id: mayor, type: office, subjects: [Tech], offices: [Belediye Başkanı], current: true, text: 'Test kaydı.'}
+                """);
+        assertTrue(KnowledgeBase.reloadFrom(root));
+        try {
+            var a = new Visitor("a"); manager.startConversation(a.player, npc);
+            a.messages.clear();
+            manager.handleChatInput(a.player, "Haklısınız, başkanımızın adı nedir?");
+            drain();
+            assertEquals(0, backend.replies.size());
+            assertFalse(a.messages.stream().anyMatch(s -> s.contains("✏")), "Local answer has nothing to wait for");
+            assertTrue(a.messages.stream().anyMatch(s -> s.contains("Tech")));
+            assertEquals(1, a.messages.size(), "No empty action bar around a local answer");
+            a.messages.clear();
+            manager.handleChatInput(a.player, "Bugün hava güzel.");
+            assertTrue(a.messages.stream().anyMatch(s -> s.contains("✏")), "A model call still shows progress");
+            assertEquals(1, backend.replies.size());
+        } finally {
+            Files.writeString(root.resolve("knowledge.yml"), "enabled: true\n");
+            assertTrue(KnowledgeBase.reloadFrom(root));
+        }
+    }
     @Test void cancelledTimeoutFromPreviousVisitCannotCloseReopenedVisit() {
         setup(0); var a = new Visitor("a"); manager.startConversation(a.player, npc);
         Timer old = timers.get(0);

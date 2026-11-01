@@ -134,8 +134,8 @@ class HybridAnswerTest {
         for (String q : List.of("Merhaba", "Nasılsın?", "Başkanım, nasılsın?", "iladymoon görevini iyi yapıyor mu?",
                 "Sence siyaset nasıl yapılmalı?", "Görevimi yaptım, ödülümü ver", "Doğan Tırpan ile iladymoon aynı görevde mi?",
                 "iladymoon sana bağlı olduğu için mi başarılı?", "Eskiden Tech hangi görevde?", "2020 yılında Tech hangi görevde?",
-                "Önceden Tech hangi görevde?", "Yarın Tech hangi görevde?", "iladymoon'un görevleri neler ve Tech kime bağlı?",
-                "Tech Plaza kimdir?", "Doğan Tırpan iladymoon'a bağlı mı?")) {
+                "Önceden Tech hangi görevde?", "Yarın Tech hangi görevde?", "Tech Plaza kimdir?",
+                "Sence Tech iyi bir belediye başkanı mı?")) {
             var p = plan(q);
             assertFalse(p.local(), q);
             assertFalse(p.guarded(), q);
@@ -302,6 +302,120 @@ class HybridAnswerTest {
         assertTrue(result.text().startsWith(p.sourceAnswer()));
         assertTrue(result.text().contains("İyiyim, teşekkür ederim."));
         assertEquals(1, backend.calls);
+    }
+    @Test void inGameMayorQuestionAndItsPossessiveFormsAreAnsweredLocally() throws Exception {
+        for (String q : List.of("Haklısınız, başkanımızın adı nedir?", "Başkanımızın adı nedir?", "Başkanın adı ne?",
+                "Belediye başkanının ismi nedir?", "Belediye başkanımızın adı nedir?", "Başkanımız kim?", "Peki başkanımız kimdir?",
+                "Tamam, belediye başkanı kim?", "Superseed belediye başkanının adı nedir?", "Sayın başkanım, başkanımızın adı nedir?",
+                "Şehrin başkanı kim?", "Teşekkür ederim, başkanın adı ne?", "Başkanımız kim, başkanım?")) {
+            var p = plan(q);
+            assertTrue(p.local(), q);
+            assertEquals(List.of("mayor-tech"), p.evidenceIds(), q);
+            assertTrue(p.sourceAnswer().contains("Tech"), q);
+            var backend = new FakeBackend();
+            backend.response = "Başkanımızın adı Sayın Kurgusal Kişi.";
+            assertEquals(SOURCE, answer(p, backend, token -> fail("No preview")).origin(), q);
+            assertEquals(0, backend.calls, q);
+        }
+    }
+    @Test void addressAndHistoricalWordingNeverBecomeCurrentOfficeQuestions() throws Exception {
+        for (String q : List.of("Başkanım, nasılsın?", "Başkanım", "Sayın başkanım, bugün hava güzel.", "Başkanım adınız nedir?",
+                "Başkanım kim?", "Senin adın ne?", "Eski başkanın adı nedir?", "Eski belediye başkanının adı nedir?",
+                "Önceki belediye başkanı kim?", "Başkanımız nasıl biri?", "Şehrin adı nedir?", "Haklısınız.", "Peki")) {
+            var p = plan(q);
+            assertEquals(QueryFrame.Intent.CHAT, p.query().intent(), q);
+            assertFalse(p.local(), q);
+            assertFalse(p.guarded(), q);
+        }
+    }
+    @Test void otherPossessiveOfficesStayDistinctFromTheMayor() throws Exception {
+        assertEquals(List.of("deputy-dogan"), plan("Başkan yardımcısının adı nedir?").evidenceIds());
+        assertEquals(List.of("acting-mayor-iladymoon"), plan("Başkan vekilinin ismi ne?").evidenceIds());
+        assertEquals(List.of("secretary-iladymoon"), plan("Özel kalem müdürünün adı nedir?").evidenceIds());
+        var unknown = plan("Mali İşler Müdürünün adı nedir?");
+        assertTrue(unknown.local());
+        assertTrue(unknown.evidenceIds().isEmpty());
+    }
+    @Test void inGameMixedTurnKeepsSourceAnswerAndAcceptsOnlyAnOpinion() throws Exception {
+        var p = plan("iladymoon kime bağlı? Sence Tech iyi bir belediye başkanı mı?");
+        assertTrue(p.commentary());
+        assertTrue(p.evidenceIds().isEmpty());
+        assertEquals("Sence Tech iyi bir belediye başkanı mı", p.query().remainder());
+        var backend = new FakeBackend();
+        backend.response = "Bence Tech işini ciddiye alan biri.";
+        List<String> previews = new ArrayList<>();
+        var outcome = answer(p, backend, previews::add);
+        assertEquals(MODEL, outcome.origin());
+        assertEquals("Bu bağlılığa ilişkin doğrulanmış güncel kaydım yok. Bence Tech işini ciddiye alan biri.", outcome.text());
+        assertEquals(1, backend.calls);
+        assertEquals(0, backend.streamCalls);
+        assertTrue(previews.isEmpty());
+    }
+    @Test void fabricatedRelationOrUncheckedCommentFallsBackToSourceAndInvitation() throws Exception {
+        var p = plan("iladymoon kime bağlı? Sence Tech iyi bir belediye başkanı mı?");
+        for (String candidate : Arrays.asList("iladymoon'un Tech'e bağlı olduğunu gösteren resmi kayıtlar var.", "Bence iladymoon Tech'e bağlı.",
+                "Bence Kurgusal Kişi daha iyi bir başkan.", "Bence Tech seçimi hak etti.", "Tech çok iyi.", "Bence iki yıldır iyi gidiyor.",
+                "Bence 2020'den beri iyi.", "Bence iyi. Çok iyi. Harika. Süper.", "", null, "Bence " + "çok ".repeat(60))) {
+            var backend = new FakeBackend();
+            backend.response = candidate;
+            var outcome = answer(p, backend, token -> fail("Comments stay buffered"));
+            assertEquals(SOURCE_FALLBACK, outcome.origin(), candidate);
+            assertEquals("Bu bağlılığa ilişkin doğrulanmış güncel kaydım yok. " + AnswerPlanner.INVITATION, outcome.text(), candidate);
+        }
+    }
+    @Test void commentaryBackendFailureStillDeliversSource() throws Exception {
+        var p = plan("iladymoon kime bağlı? Sence Tech iyi bir belediye başkanı mı?");
+        var backend = new FakeBackend();
+        backend.pending = CompletableFuture.failedFuture(new IllegalStateException("offline"));
+        assertEquals(SOURCE_FALLBACK, answer(p, backend, token -> fail()).origin());
+        assertEquals(1, backend.calls);
+    }
+    @Test void commentaryPromptCarriesNoLoreHistoryOrMemory() throws Exception {
+        var p = plan("iladymoon kime bağlı? Sence Tech iyi bir belediye başkanı mı?");
+        var messages = GroundedPrompt.commentary("personality fixture", "style fixture", p.query().remainder());
+        assertEquals(2, messages.size());
+        assertEquals(p.query().remainder(), messages.get(1).content());
+        String system = messages.get(0).content();
+        assertTrue(system.contains("personality fixture"));
+        assertFalse(system.contains("LORE_SOURCE_DATA"));
+        assertFalse(system.contains("PAST_MEMORY"));
+        assertFalse(system.contains(p.sourceAnswer()));
+    }
+    @Test void recognizedFactNeverFallsIntoModelBecauseOfWhatFollowsIt() throws Exception {
+        var opinionFirst = plan("Sence Tech iyi bir belediye başkanı mı? iladymoon kime bağlı?");
+        assertTrue(opinionFirst.commentary());
+        var openerOnly = plan("Sence iladymoon kime bağlı?");
+        assertTrue(openerOnly.local());
+        assertTrue(openerOnly.evidenceIds().isEmpty());
+        var twoFacts = plan("iladymoon'un görevleri neler ve Tech kime bağlı?");
+        assertTrue(twoFacts.local());
+        assertEquals(Set.of("secretary-iladymoon", "acting-mayor-iladymoon"), new HashSet<>(twoFacts.evidenceIds()));
+        assertTrue(twoFacts.sourceAnswer().contains("Bu bağlılığa ilişkin"));
+        var unseparated = plan("iladymoon kime bağlı? Bana da bir görev verir misin?");
+        assertTrue(unseparated.local());
+        assertTrue(unseparated.sourceAnswer().endsWith(AnswerPlanner.INVITATION));
+        var backend = new FakeBackend();
+        answer(unseparated, backend, token -> fail());
+        assertEquals(0, backend.calls);
+        var twoOpinions = plan("iladymoon kime bağlı? Sence Tech iyi biri mi? Sence iladymoon başarılı mı?");
+        assertTrue(twoOpinions.local());
+        assertTrue(twoOpinions.sourceAnswer().endsWith(AnswerPlanner.INVITATION));
+        assertEquals(QueryFrame.Intent.CLARIFY, plan("O kime bağlı? Sence Tech iyi biri mi?").query().intent());
+        assertFalse(plan("O kime bağlı? Sence Tech iyi biri mi?").sourceAnswer().contains(AnswerPlanner.INVITATION));
+    }
+    @Test void yesNoReportingUsesOnlyTheExactDirectedEdge() throws Exception {
+        for (String q : List.of("Doğan Tırpan Tech'e bağlı mı?", "Sen Tech'e bağlı mısın?")) {
+            var p = plan(q);
+            assertTrue(p.local(), q);
+            assertEquals(List.of("dogan-reports-to-tech"), p.evidenceIds(), q);
+        }
+        for (String q : List.of("iladymoon Tech'e bağlı mı?", "Tech Doğan Tırpan'a bağlı mı?", "Doğan Tırpan iladymoon'a bağlı mı?",
+                "Tech sana bağlı mı?", "Kurgusal Alfa Tech'e bağlı mı?")) {
+            var p = plan(q);
+            assertTrue(p.local(), q);
+            assertTrue(p.evidenceIds().isEmpty(), q);
+            assertEquals("Bu bağlılığa ilişkin doğrulanmış güncel kaydım yok.", p.sourceAnswer(), q);
+        }
     }
     @Test void reviewedChatPlusUnsupportedThirdSentenceIsStillRejected() throws Exception {
         var p = plan("iladymoon'un görevleri neler, bugün nasılsın?");

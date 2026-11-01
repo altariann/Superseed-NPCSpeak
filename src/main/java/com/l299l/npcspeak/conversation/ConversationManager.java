@@ -223,12 +223,6 @@ public class ConversationManager {
         cooldownManager.record(player.getUniqueId(), npc.getId());
         session.setPending(true);
 
-        if (streamingEnabled) {
-            player.sendActionBar(Component.text("✏ ...", NamedTextColor.GRAY));
-        } else {
-            NpcFormatter.sendTypingIndicator(player, npc.getDisplayName());
-        }
-
         dispatchToBackend(player, npc, session, text);
     }
 
@@ -251,11 +245,6 @@ public class ConversationManager {
         cancelListenTimeout(player.getUniqueId());
         cooldownManager.record(player.getUniqueId(), npc.getId());
         session.setPending(true);
-        if (streamingEnabled) {
-            player.sendActionBar(Component.text("✏ ...", NamedTextColor.GRAY));
-        } else {
-            NpcFormatter.sendTypingIndicator(player, npc.getDisplayName());
-        }
         dispatchToBackend(player, npc, session, text);
     }
 
@@ -366,6 +355,15 @@ public class ConversationManager {
         boolean freeform = npc.getConfig().isFreeformConversation();
         AnswerPlan plan = new AnswerPlanner().plan(text, speaker, lore, session.getReplySequence(), freeform);
 
+        // A local answer arrives on the next tick; only a model call has anything to wait for.
+        if (!plan.local()) {
+            if (streamingEnabled) {
+                player.sendActionBar(Component.text("✏ ...", NamedTextColor.GRAY));
+            } else {
+                NpcFormatter.sendTypingIndicator(player, npc.getDisplayName());
+            }
+        }
+
         StringBuilder buffer = new StringBuilder();
         AtomicLong lastUpdateMs = new AtomicLong(0);
         int replySequence = session.getReplySequence();
@@ -403,7 +401,7 @@ public class ConversationManager {
             if (npc.getConfig().isLogConversations()) {
                 logger.log(npc.getId(), player.getName(), text, response);
             }
-            if (streamingEnabled) player.sendActionBar(Component.text(" "));
+            if (streamingEnabled && !plan.local()) player.sendActionBar(Component.text(" "));
             NpcFormatter.sendResponse(player, npc.getDisplayName(), response);
             NpcTaskConfig task = npc.getConfig().getTask();
             if (task != null && "negotiate".equals(task.getType())
@@ -420,6 +418,7 @@ public class ConversationManager {
                                                       ConversationSession session, String userText, LoreEngine lore,
                                                       SpeakerContext speaker, AnswerPlan plan, boolean freeform) {
         String systemPrompt = PapiExpander.expand(player, npc.getConfig().buildSystemPrompt(npc.getDisplayName()));
+        if (plan.commentary()) return GroundedPrompt.commentary(systemPrompt, lore.persona(npc.getId()), plan.query().remainder());
         Map<String, String> playerMemory = cachedMemory.get(player.getUniqueId());
         if (freeform) return GroundedPrompt.messages(systemPrompt, lore.persona(npc.getId()),
                 playerMemory == null ? null : playerMemory.get(npc.getId()), session.getHistory(), userText, lore, speaker, plan);

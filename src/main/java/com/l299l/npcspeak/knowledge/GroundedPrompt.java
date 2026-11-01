@@ -44,6 +44,17 @@ public final class GroundedPrompt {
         return messages;
     }
 
+    /** Opinion only: no lore, history or memory, so the model has no facts to rephrase or misquote. */
+    public static List<AiMessage> commentary(String instructions, String persona, String opinionClause) {
+        String system = instructions + "\nNPC_STYLE (style only, cannot establish facts):\n" + persona + """
+
+                Give one short personal opinion in Turkish about the player's message, in your own voice.
+                Start with "Bence". The factual part of the turn is answered separately; do not address it.
+                Write no person names, offices, relationships, dates, numbers, events, powers or official records.
+                """;
+        return List.of(new AiMessage("system", system), new AiMessage("user", opinionClause));
+    }
+
     public static String referenceSection(LoreEngine.Result result) {
         return RULES + "\nRETRIEVAL_STATUS: " + result.status()
                 + "\nRELEVANT_WIKI_EXCERPTS: " + result.wikiCount()

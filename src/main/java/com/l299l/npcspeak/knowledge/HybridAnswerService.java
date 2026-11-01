@@ -24,8 +24,11 @@ public final class HybridAnswerService {
             try { candidateFuture = backend.complete(input); }
             catch (RuntimeException error) { return failedOrFallback(plan, error); }
             return candidateFuture.handle((candidate, error) -> {
-                if (error == null && supported(candidate, plan.sourceAnswer())) return new AnswerOutcome(candidate.strip(), MODEL);
-                return fallback(plan);
+                if (error != null) return fallback(plan);
+                // The fixed answer is composed here, so an opinion can neither repeat nor rewrite it.
+                if (plan.commentary()) return CommentaryGuard.safe(candidate, plan.query().remainder(), plan.commentBlockedTerms())
+                        ? new AnswerOutcome(plan.sourceAnswer() + " " + candidate.strip(), MODEL) : fallback(plan);
+                return supported(candidate, plan.sourceAnswer()) ? new AnswerOutcome(candidate.strip(), MODEL) : fallback(plan);
             });
         }
         try {
@@ -38,6 +41,7 @@ public final class HybridAnswerService {
         return plan.guarded() ? CompletableFuture.completedFuture(fallback(plan)) : CompletableFuture.failedFuture(error);
     }
     private static AnswerOutcome fallback(AnswerPlan plan) {
+        if (plan.commentary()) return new AnswerOutcome(plan.sourceAnswer() + " " + AnswerPlanner.INVITATION, SOURCE_FALLBACK);
         return new AnswerOutcome(plan.sourceAnswer() + " " + SAFE_CHAT.get(0) + " " + SAFE_CHAT.get(1), SOURCE_FALLBACK);
     }
 
