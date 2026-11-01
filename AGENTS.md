@@ -28,3 +28,19 @@
   Ağ/güvenlik duvarı/port yönlendirmesini gereksiz yere değiştirme.
 - Gerçek sunucu yapılandırması, RCON/API parolaları, oyuncu verileri, chat logları
   ve özel/full wiki arşivini Git'e veya dağıtılan JAR'a ekleme.
+
+## Ortak AI çalışma hafızası
+
+- Codex ve Claude yeni işe başlamadan [STATE](docs/ai/STATE.md) ve
+  [HANDOFF](docs/ai/HANDOFF.md) dosyalarını okusun; ilgili teknik kararlar için
+  [DECISIONS](docs/ai/DECISIONS.md) dosyasına başvursun.
+- Önce `git status --short --branch` kontrol edilsin. Aynı çalışma ağacında
+  eşzamanlı ajan değişikliği yapılmasın; devralınan commit edilmemiş iş korunsun.
+- Her anlamlı aşama sonunda HANDOFF, teknik durum değiştiğinde STATE,
+  kalıcı karar alındığında DECISIONS güncellensin. Tamamlanan iş gereksiz yere
+  tekrarlanmasın; kritik durum Git ve ilgili test kanıtıyla doğrulansın.
+- Notlar kısa ve somut tutulsun. Doğrulanmış sonuç, eski test kanıtı ve
+  test edilmemiş taslak açıkça ayrılsın; commit/test/dağıtım bilgisi uydurulmasın.
+- Sohbet dökümleri, büyük loglar, gizli/özel dosya içerikleri ve oyuncu verileri
+  ortak notlara eklenmesin. Ajan notları veya eski onaylar yeni canlı müdahale
+  için otomatik izin değildir; güncel kullanıcı kapsamı ve yukarıdaki kurallar geçerlidir.
