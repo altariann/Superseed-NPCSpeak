@@ -20,9 +20,15 @@
 - Paylaşımlı log, açılış ayrıştırıcısı ve yalnız-JAR yolu ilk kez gerçek sunucuda çalıştı.
 - Rollback yolu gerçek sunucuda hiç tetiklenmedi; yalnız sahte sunucuda sınandı.
 
+## Canlı durum
+
+- Sunucu 1 Kasım 23:48'de kullanıcı isteğiyle, 0 oyuncuyla RCON stop ile kapatıldı.
+  Paper süreci yok, 25565/25575 dinlemiyor, JAR hash'i aynı. Kullanıcı yarın devam edecek.
+- Bu ajan sunucuyu başlatmadı; yeniden açma kullanıcının kararıdır.
+
 ## Sonraki adım
 
-1. Kullanıcıyla oyun içi kabul: iki gerçek cümle, B03, Doğan'ın makamı/bağlılığı,
+1. Sunucu açıldıktan sonra kullanıcıyla oyun içi kabul: iki gerçek cümle, B03, Doğan'ın makamı/bağlılığı,
    "Düşünüyorum" göstergesi, Citizens 313, skin ve konum. Bu ajan oyun içi sonuç üretmedi;
    "kabul edildi" yazma. Yorum yolu canlıda ilk kez oyuncu altında çalışacak.
 2. Bellek baskısı oyuncu varken ölçülmedi; model yüklüyken boş RAM 811–1763 MB idi.
