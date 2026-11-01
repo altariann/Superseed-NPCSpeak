@@ -1,41 +1,45 @@
 # Ajan devri
 
-- Son çalışan ajan: **Claude**. Son güncelleme: **1 Kasım 2026 22:04, Europe/Istanbul**.
+- Son çalışan ajan: **Claude**. Son güncelleme: **1 Kasım 2026 22:35, Europe/Istanbul**.
 - Dal: `dev/superseed-automation`; açık geliştirme PR'ı #2, kaynak tabanı PR #1.
-- Doğrulanan uygulama commit'i: `e2fb5676a1374fb76e906225cbcb3886d4071aeb`.
+- Doğrulanan uygulama commit'i: `94440c111772aca4fbbb0901b7ccf7fe32531055`.
   Belge commit'ini `git log -1 -- docs/ai/HANDOFF.md` ile, gerçek HEAD'i ayrıca doğrula.
 
-## İlk canlı geçişin sonucu
+## Son aşama: oyun içi hataların düzeltmesi
 
-- Kullanıcının açık onayıyla 1 Kasım 22:01'de `plan-20261101-214422` uygulandı.
-  Ön kontroller GO idi: 0 oyuncu, PID 15164, plan hash ve Inspect/Preview tamam.
-- **Yeni sürüm canlı:** Paper PID 8244; `Done (46,111s)`, Citizens ve NPCSpeak açıldı,
-  1 NPC yüklendi. `HYBRID_READY_V1` plandaki marker ile birebir aynı.
-- **Dağıtım betiği başarılı bitmedi (çıkış 1):** açılış beklemesi `latest.log`'u kilit
-  nedeniyle okuyamadı. Kurtarma açılan süreci görüp stop/yazma/başlatma yapmadan durdu;
-  `transaction.json` fazı `RECOVERY_BLOCKED`. Geri alma uygulanmadı.
-- Betiğin yapamadığı son denetim elle ve salt okunur yapıldı. Sonuçlar [STATE](STATE.md).
-- Kök neden `e2fb567` ile düzeltildi, regresyon testi eklendi. Bu düzeltme canlı
-  JAR'ı değiştirmez; yalnız sonraki dağıtım betiğini etkiler.
-- Testler: **144 Java, 245 PowerShell**, 0 hata.
+- Kullanıcının ilk oyun içi testinde üç sorgu doğruydu, iki olgusal hata bulundu.
+- **Kanıtlı neden** (değişiklikten önce gerçek planlayıcıyla, geçiş verisi üzerinde):
+  - `Haklısınız, başkanımızın adı nedir?` → `CHAT`, kaynak `NO_RELEVANT_SOURCE`, 0 kayıt.
+  - `iladymoon kime bağlı? Sence Tech iyi bir belediye başkanı mı?` → `CHAT`, doğrulanmış
+    kayıt 0. İlk cümlecik tek başına doğru `REPORTS_TO` yerel plana gidiyordu.
+  - Uydurma ad wiki, NPC, `knowledge.yml` ve NPCSpeak diğer 4 dosyasında (memory dahil) yok.
+  - **Çıkarım, kanıt değil:** ad modelin kaynaksız üretimi. Model yeniden çalıştırılmadı.
+- `94440c1`: cümlecik planı, başkan dil bilgisi, `X Y'ye bağlı mı`, `CommentaryGuard`,
+  yalnız yorum için `GroundedPrompt.commentary`, göstergenin model çağrısına bağlanması.
+- İki eski test beklentisi bilerek değişti: iki olgulu `ve` turu ve `X Y'ye bağlı mı`
+  artık modele gitmiyor. Tek başına yorum sorusu `MODEL` beklentisine eklendi.
+- Testler: **154 Java (10 yeni), 245 PowerShell**, 0 hata. Geçiş verisiyle 6/6 sorgu.
+- Regresyon testleri yalnız kurgusal veri kullanır; ekran görüntüsü/oyuncu verisi yok.
 
-## Yedek ve geri dönüş
+## Canlı durum
 
+- **Düzeltme canlıda değil.** Canlı JAR `5bddbd93…de91a6`, depo JAR'ı `b7502123…c27a`.
+  Paper PID 8244 çalışıyor; stop/restart, JAR/NPC/knowledge yazımı veya RCON yapılmadı.
 - Yedek: sunucu kökünde `deployment-backups/hybrid-9a9142c7bfe342c28aba9112a9df0fe9`.
-  `before/` ve `final/` altındaki üç dosya özgün hash'lerle doğrulandı.
-- Otomatik geri dönüş artık yok; plan tüketildi. Sorun çıkarsa kullanıcıya danış: geri
-  dönüş yeni canlı müdahaledir, ayrı onay ister. Onaylanırsa güvenli stop, tam kapanış,
-  yalnız bu üç dosyanın geri yazımı ve aynı BAT ile açılış gerekir.
-- Geri dönüşte `knowledge-entity` ve yeni kişilik kalkar. Oyuncu verileri geri sarılmaz.
+  İlk geçişin `transaction.json` fazı `RECOVERY_BLOCKED`; ayrıntı [STATE](STATE.md).
 
 ## Sonraki adım
 
-1. Kullanıcıyla oyun içi kabul: B03, Doğan'ın makamı/bağlılığı, Tech'e bağlılık,
-   Citizens 313, skin, konum. Citizens için önceki kopya olmadığından oyun içi teyit şart.
-2. Bu ajan oyun içi test sonucu üretmedi; "kabul edildi" yazma.
-3. Yeni canlı stop/JAR/config işlemi için yeni açık onay gerekir. Yeni plan gerekirse
-   `.npcspeak-deploy.lock` boş dosyası sunucu kökünde durur; işlem tutmuyor.
-4. Açık kalanlar için [STATE](STATE.md) bölümüne bak.
+1. Kullanıcı iki onayı ayrı verir; bunlar olmadan ikisini de yapma:
+   - Küçük gerçek Gemma denemesi: yorum yolu ne sıklıkla geçerli `Bence…` üretiyor?
+   - Yalnız JAR canlı dağıtımı.
+2. **Araç boşluğu:** `DeploymentPlanPreparation` taşınmış kaynağı bilerek reddeder ve üç
+   dosyalı plan NPC/knowledge değişimi bekler; bu dağıtım için kullanılamaz. Eski JAR-only
+   `-Mode Deploy` yolu hibrit kanıt beklemez, makbuz denetimi ve üç dosya yedeği yoktur.
+   Dağıtımdan önce uygun yol tasarlanmalı; `-WhatIf` dışında deneme yapma.
+3. Canlı dağıtımdan sonra iki gerçek cümle, B03, Doğan'ın makamı/bağlılığı, Citizens 313,
+   skin ve konum oyun içinde sınanır. Citizens için geçiş öncesi kopya yok.
+4. Bu ajan oyun içi test sonucu üretmedi; "kabul edildi" yazma.
 
 Özel plan, diff, yedek ve kanıtlar yalnız yerel özel alandadır. Gizli dosya
 içeriklerini bu notlara/Git'e kopyalama.

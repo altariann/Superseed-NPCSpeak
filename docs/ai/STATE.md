@@ -1,11 +1,11 @@
 # Proje durumu
 
-Son doğrulama: **1 Kasım 2026 22:04, Europe/Istanbul**. Bu dosya güncel durum özetidir;
+Son doğrulama: **1 Kasım 2026 22:35, Europe/Istanbul**. Bu dosya güncel durum özetidir;
 son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS](../../AGENTS.md).
 
 ## Git ve kabul durumu
 
-- Dal: `dev/superseed-automation`. Doğrulanan son uygulama commit'i: `e2fb567`.
+- Dal: `dev/superseed-automation`. Doğrulanan son uygulama commit'i: `94440c1`.
   Bu belgelerin commit'i bunun üzerine gelir; gerçek HEAD'i Git'ten oku.
 - [PR #2](https://github.com/altariann/Superseed-NPCSpeak/pull/2) açık;
   head `dev/superseed-automation`, base `dev/superseed-source`.
@@ -14,10 +14,11 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
 - `9b55873` mimari, `aeccff0`/`cd60e32` ilk uygulama,
   `2589220` oturum/filtre güvenliği, `0e115f5` pilot aracı ve sonuç raporu,
   `c08cbf3` üç dosyalı güvenli dağıtım hazırlığı, `e73ba31` geçersiz plan koruması,
-  `82c3218` beklenmedik Paper koruması, `e2fb567` paylaşımlı log okuma.
+  `82c3218` beklenmedik Paper koruması, `e2fb567` paylaşımlı log okuma,
+  `94440c1` çok niyetli tur ve başkan soruları düzeltmesi.
 - İlk kontrollü canlı geçiş kullanıcı onayıyla 1 Kasım 22:01'de uygulandı. Canlı
-  sürüm `82c3218` betiğiyle kuruldu; `e2fb567` düzeltmesi sonraki dağıtımlar içindir.
-  Oyun içi kabul bekliyor.
+  JAR `5bddbd93…de91a6` iken depo JAR'ı `b7502123…c27a`: **`94440c1` canlıda değil**,
+  oyun içi iki hata canlıda sürer. Yeni dağıtım ayrı onay ister.
 
 ## Uygulanan mimari
 
@@ -25,6 +26,12 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
   `AnswerPlan` yolu/kanıtı, `AnswerOutcome` yalnız gönderilecek son metni taşır.
 - Dar ve açık güncel makam, makam sahibi ve yönlü bağlılık soruları freeform
   akışında yerel yanıtlanır. B03'ün iki makamı iladymoon'a aittir; model çağrısı 0.
+  Başkan iyelik biçimleri, kısa girişler ve `X Y'ye bağlı mı` da bu yoldadır.
+- Mesaj tam cümleciklere ayrılır; tanınan olgu her zaman kayıttan gelir. Olgu + tek
+  yorum: model yalnız yorum cümleciğini görür (lore/geçmiş/hafıza yok), çıktı filtreden
+  geçerse sabit cevabın ardına eklenir, geçmezse devam daveti kullanılır. Olgu + ayrıştırılamayan
+  metin: model çağrılmaz, cevap + davet. Yalnız yorum veya sohbet Gemma'da kalır.
+- "Yazıyor" göstergesi yalnız model çağrısında gösterilir; yerel cevapta gösterilmez.
 - Birinci şahıs için isteğe bağlı açık `knowledge-entity` bağı gerekir.
   `reports_to`, `from`, `to` yönü belirtir; eski YAML okunmaya devam eder.
 - Gündelik sohbet/karakter yorumları Gemma'da kalır. Dar karışık yolda olgusal
@@ -38,11 +45,14 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
 ## Doğrulanan son sonuçlar
 
 - JDK 26.0.2; ana Java hedefi 17 / major 61.
-- **144 Java testi, 0 başarısızlık/hata/atlama; 245 PowerShell denetimi**
+- **154 Java testi, 0 başarısızlık/hata/atlama; 245 PowerShell denetimi**
   (75 dağıtım + 144 üç dosyalı dağıtım + 11 snapshot + 15 pilot). Temiz
-  `Deploy-Superseed.ps1 -Mode Build` başarılı; kanıt zamanı 1 Kasım 22:03 İstanbul.
-  Java sayısı XML raporlarından okundu. JAR: test sınıfı/wiki yok, major 61,
-  SHA256 `5bddbd93…de91a6`.
+  `Deploy-Superseed.ps1 -Mode Build` başarılı; kanıt zamanı 1 Kasım 22:33 İstanbul.
+  Java sayısı XML raporlarından okundu. Depo JAR'ı: test sınıfı/wiki yok, major 61,
+  SHA256 `b7502123…c27a`. Canlıya kurulmadı.
+- Geçiş verisiyle (6 kayıt, 221 wiki) çevrimdışı rota: başkan sorusu `LOCAL`/`mayor-tech`,
+  karışık tur `COMMENTARY`/kanıtsız, 6/6 deterministik sorgu, sohbet ve yorum `MODEL`.
+  Gerçek model çağrılmadı; yorum filtresi gerçek Gemma çıktısıyla sınanmadı.
 - Üç dosyalı senaryolar sahte sunucu ağacı ve mock yaşam döngüsüyle sınandı;
   gerçek stop/kurulum/açılış ise tek canlı geçişle gözlendi (aşağıda). Oyun içi
   kabul veya TPS ölçümü yapılmadı.
@@ -59,6 +69,13 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
   ayrı doğrulanmış kendilik kanıtı eksik. İğneleyici/gösterişli ton kalıcı doğrulanmadı.
 - Karşılaştırma, tarih/yıl/gelecek, genel ilişkiler ve karmaşık karışık niyetler
   deterministik kapsamda değil. Serbest sohbetin tüm olguları doğrulanmış sayılmaz.
+  Tek başına yorum sorusu ve varsayımlı cümleler ("sana bağlı olduğu için mi") Gemma'da kalır.
+- Yorum filtresi sezgiseldir, doğruluk denetimi değildir; yanlış pozitif davet üretir.
+  Çok iyelikli serbest sohbette ("başkanımız çok iyi, adını unuttum") kaynak araması
+  başkan kaydını yine bulamayabilir; kapsam dışı.
+- Oyun içi test (1 Kasım): üç sorgu doğru, iki olgusal hata bulundu. İkisi de `CHAT`
+  planına düşüyordu: başkan sorusunda kaynak `NO_RELEVANT_SOURCE`, karışık turda doğrulanmış
+  kayıt 0. Uydurma ad wiki, NPC, knowledge ve memory dosyalarında yok.
 - **Canlı sürüm:** `plan-20261101-214422` kurulu; Paper PID 8244 çalışıyor (22:03).
   Aday JAR ve knowledge hash'leri aynı, NPC hash'i açılış makbuzuyla aynı.
   `HYBRID_READY_V1` plandaki marker ile birebir; Paper, Citizens, NPCSpeak açıldı.
@@ -85,7 +102,7 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
   yeniden başlatıcı bulunmadı.
 - Gerçek geçişte Paper yeniden eşlemesi sorun çıkarmadı; eski JAR'ın stop kaydı NPC
   baytlarını değiştirmedi.
-- **Oyun içi kabul yapılmadı.** Sunucu artık gizli pencerede çalışıyor; konsol görünmez.
+- **Oyun içi kabul tamamlanmadı.** Sunucu artık gizli pencerede çalışıyor; konsol görünmez.
   Sunucu kökünde boş `.npcspeak-deploy.lock` kaldı; işlem tutmuyor, zararsız.
 
 Ayrıntılar: [mimari](../hybrid-answer-architecture.md),

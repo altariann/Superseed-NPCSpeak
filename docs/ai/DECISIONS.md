@@ -10,6 +10,10 @@ Güncel kullanıcı talimatı bu notlardan önceliklidir; notlar onay belgesi de
 | Açık belediye olguları dar deterministik yolda, serbest sohbet Gemma'da | B03'e gereksiz model çağrısı gönderme; bütün sohbeti sabit cevaplara veya belirsiz mesajı zoraki makam eşleşmesine dönüştürme. |
 | Makam ve ilişki farklı kanıtlardır | `reports_to/from/to` yönünü koru; makamdan koordinasyon, yetki, bağlılık veya geçişli ilişki üretme. Eski katılımcı sırasını yeni yönlü kayıt sayma. |
 | Eksik kanıt bilinmeyendir | “Kaydım yok” ifadesini “görevi yok/kimseye bağlı değil” sonucuna çevirme; tarihsel wiki'yi güncel atama kanıtı sayma. |
+| Tanınan olgu, mesajda ne olursa olsun kayıttan gelir | Oyun içi iki hata, tam eşleşmeyen mesajın bütünüyle `CHAT`'e düşmesindendi. Ayrım tam cümlecik düzeyindedir; keyfi anahtar kelime eşleşmesine dönülmez. |
+| Yorum olgudan ayrı üretilir | Model yalnız yorum cümleciğini görür, sabit cevabı tekrar edemez. Şüphede yorum düşer, cevap + davet kalır; yeni doğrulama modeli veya retry yok. |
+| Bare "başkan" belediye başkanıdır, "başkanım" hitaptır | Hitap cümlesi makam sorgusuna dönüşmez. Eski/önceki ifadeleri güncel makam sayılmaz. |
+| Yazıyor göstergesi model çağrısına bağlıdır | Yerel cevap sonraki tick'te gelir; gösterge bekleme izlenimi yaratmaktan başka iş görmez. |
 | Dar karışık cevapta sabit olgu + incelenmiş sohbet ekleri | Adayı teslimden önce tamponla. Güvenli iki eki birlikte gereksiz reddetme; yalnız olguyu verip sohbeti sessizce düşürme. Keyfî paraphrase'i doğrulanmış sayma. |
 | İkinci doğrulama modeli veya otomatik retry yok | CPU maliyeti ve ikinci modelin de yanılma riski var. Eski küçük pilot onayı sınırsız yeni inference izni değildir. |
 | Son teslim güncel ziyaret ve ana thread ile bağlıdır | Yerel tamamlanmış future de aynı teslim kuyruğunu kullanır. Pending erken bırakılmaz; eski giriş/yanıt/preview/timeout yeni görüşmeye sızmaz. |
