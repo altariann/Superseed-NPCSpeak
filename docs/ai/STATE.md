@@ -1,6 +1,6 @@
 # Proje durumu
 
-Son doğrulama: **1 Kasım 2026 23:27, Europe/Istanbul**. Bu dosya güncel durum özetidir;
+Son doğrulama: **1 Kasım 2026 23:46, Europe/Istanbul**. Bu dosya güncel durum özetidir;
 son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS](../../AGENTS.md).
 
 ## Git ve kabul durumu
@@ -17,9 +17,9 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
   `82c3218` beklenmedik Paper koruması, `e2fb567` paylaşımlı log okuma,
   `94440c1` çok niyetli tur ve başkan soruları düzeltmesi, `0a5e30b` yalnız-JAR yolu,
   `352cbcb` pilot bulgularıyla yorum filtresi düzeltmesi.
-- İlk kontrollü canlı geçiş kullanıcı onayıyla 1 Kasım 22:01'de uygulandı. Canlı
-  JAR `5bddbd93…de91a6` iken depo JAR'ı `e5b8ddc6…0e7e`: **`94440c1` ve sonrası canlıda
-  değil**, oyun içi iki hata canlıda sürer. Yeni dağıtım ayrı onay ister.
+- İlk kontrollü canlı geçiş kullanıcı onayıyla 1 Kasım 22:01'de uygulandı. Yalnız-JAR
+  güncellemesi 1 Kasım 23:43'te uygulandı: **`352cbcb` canlıda**, JAR `e5b8ddc6…0e7e`.
+  Bu düzeltmelerin oyun içi kabulü henüz yapılmadı.
 
 ## Uygulanan mimari
 
@@ -84,23 +84,20 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
 - Oyun içi test (1 Kasım): üç sorgu doğru, iki olgusal hata bulundu. İkisi de `CHAT`
   planına düşüyordu: başkan sorusunda kaynak `NO_RELEVANT_SOURCE`, karışık turda doğrulanmış
   kayıt 0. Uydurma ad wiki, NPC, knowledge ve memory dosyalarında yok.
-- **Canlı sürüm:** `plan-20261101-214422` kurulu; Paper PID 8244 çalışıyor (22:03).
-  Aday JAR ve knowledge hash'leri aynı, NPC hash'i açılış makbuzuyla aynı.
-  `HYBRID_READY_V1` plandaki marker ile birebir; Paper, Citizens, NPCSpeak açıldı.
-  NPC YAML'da yalnız onaylı kişilik değişimi ve `knowledge-entity` farkı var.
-- **Betik sonucu başarılı değil:** `transaction.json` fazı `RECOVERY_BLOCKED`.
-  Betik açılışı beklerken kilitli `latest.log` okuyamadı, kurtarma açılan süreci
-  görüp stop/yazma yapmadan durdu. Geri alma olmadı; yeni sürüm açılmaya devam etti.
-  Son denetim betik dışında elle, salt okunur yapıldı. Bu fazı başarı sayma.
-- Korunanlar 22:03'te doğrulandı: 221 wiki, 60 diğer plugin JAR'ı, BAT, spigot.yml,
+- **Canlı sürüm:** `jar-plan-20261101-232407` kurulu; Paper PID 3476 (23:44). Betik çıkışı 0,
+  `transaction.json` fazı `READY`, Citizens farkı 0. `HYBRID_READY_V1 058c2efb…60a9` plandaki
+  marker ile birebir; Paper, Citizens, NPCSpeak açıldı. Bağımsız denetimde 288 sıkı dosya,
+  NPC YAML, sunucu ayarları ve BAT aynı; Citizens 313 bloğu stop öncesiyle aynı (52 satır).
+- İlk geçişin fazı `RECOVERY_BLOCKED` kaldı: betik kilitli `latest.log` okuyamayıp durmuştu,
+  geri alma olmamıştı ve son denetim elle yapılmıştı. Bu tarihsel kaydı başarı sayma.
+- İlk geçiş sonrası korunanlar 22:03'te doğrulandı: 221 wiki, 60 diğer plugin JAR'ı, BAT, spigot.yml,
   bukkit.yml, paper.jar, NPCSpeak config/messages aynı. `server.properties` yalnız
   Minecraft'ın açılış damgasıyla farklı (önceki damgayla plan hash'i elde edildi).
   Citizens `saves.yml` kapanışta yazıldı; önceki kopyası alınmadığından yalnız 313
   kaydı, adı ve skin alanlarının varlığı doğrulandı. Oyun içinde teyit edilmeli.
 - Loglarda 2 ERROR var (ReviveMe sürümü, world_nether autoload); son iki eski açılışta
   da aynı. Bu işten kaynaklanmıyor, dokunulmadı.
-- Plan artık tüketildi; canlı hash'ler değiştiği için yeniden kullanılamaz.
-  Önceki plan `SUPERSEDED.txt` ile işaretli.
+- Tüm mevcut planlar tüketildi veya `SUPERSEDED.txt` ile işaretli; yeniden kullanılamaz.
 - Güncel kişi/makam bilgisi `municipal-records` içindedir; legacy municipality
   gölgelenir. NPC ve `characters` kişiliklerinde anlatıcının kendi makamını söyleyen
   ifade kaldı; kullanıcı kapsamı gereği değiştirilmedi. Tarihsel wiki ayrıca okunur.
