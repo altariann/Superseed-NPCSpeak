@@ -112,7 +112,23 @@ public final class KnowledgeBase {
                         || !type.equals("office") && !offices.isEmpty() || offices.stream().anyMatch(String::isBlank)) {
                     throw new IllegalArgumentException("Invalid municipal participants or offices");
                 }
-                facts.add(new LoreEngine.VerifiedFact(id, text.strip(), subjects, stringList(record.get("keywords")), current, type, offices, true));
+                String relation = "", from = "", to = "";
+                if (record.containsKey("relation") || record.containsKey("from") || record.containsKey("to")) {
+                    if (!type.equals("relationship") || !"reports_to".equals(record.get("relation"))
+                            || !(record.get("from") instanceof String source) || source.isBlank()
+                            || !(record.get("to") instanceof String target) || target.isBlank()
+                            || LoreEngine.normalize(source).equals(LoreEngine.normalize(target))) {
+                        throw new IllegalArgumentException("Invalid directed municipal relationship");
+                    }
+                    relation = "reports_to"; from = source.strip(); to = target.strip();
+                    Set<String> participants = new HashSet<>();
+                    subjects.forEach(subject -> participants.add(LoreEngine.normalize(subject)));
+                    if (!participants.equals(Set.of(LoreEngine.normalize(from), LoreEngine.normalize(to)))) {
+                        throw new IllegalArgumentException("Relationship endpoints must match subjects");
+                    }
+                }
+                facts.add(new LoreEngine.VerifiedFact(id, text.strip(), subjects, stringList(record.get("keywords")),
+                        current, type, offices, true, relation, from, to));
             }
         }
         String municipality = config.getString("municipality", "");

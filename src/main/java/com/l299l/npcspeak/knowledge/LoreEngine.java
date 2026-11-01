@@ -38,12 +38,16 @@ public final class LoreEngine {
         public Alias { names = List.copyOf(names); }
     }
     public record VerifiedFact(String id, String text, List<String> subjects, List<String> keywords, boolean current,
-                               String type, List<String> offices, boolean municipal) {
+                               String type, List<String> offices, boolean municipal, String relation, String from, String to) {
         public VerifiedFact {
             subjects = List.copyOf(subjects); keywords = List.copyOf(keywords); offices = List.copyOf(offices);
         }
         public VerifiedFact(String id, String text, List<String> subjects, List<String> keywords, boolean current) {
             this(id, text, subjects, keywords, current, "fact", List.of(), false);
+        }
+        public VerifiedFact(String id, String text, List<String> subjects, List<String> keywords, boolean current,
+                            String type, List<String> offices, boolean municipal) {
+            this(id, text, subjects, keywords, current, type, offices, municipal, "", "", "");
         }
     }
     private record Passage(String key, String title, String source, String text, Set<String> terms, int number, String via) {}
@@ -132,6 +136,7 @@ public final class LoreEngine {
     }
 
     public Settings settings() { return settings; }
+    public List<VerifiedFact> municipalRecords() { return facts.stream().filter(VerifiedFact::municipal).toList(); }
     List<Article> articles() { return articles; }
     List<Alias> aliases() { return aliases; }
     LoreEngine reindex(List<Article> reordered) { return new LoreEngine(settings, reordered, aliases, facts, personas); }
@@ -338,7 +343,9 @@ public final class LoreEngine {
             boolean directional = reporting || query.stream().anyMatch(word -> word.startsWith("amir") || Set.of("ust", "ustu").contains(word));
             if (personMatch && directional && people.size() == 1) {
                 boolean inverse = reporting && query.contains("kim");
-                personMatch = people.contains(normalize(fact.subjects().get(inverse ? fact.subjects().size() - 1 : 0)));
+                String endpoint = fact.relation().equals("reports_to") ? (inverse ? fact.to() : fact.from())
+                        : fact.subjects().get(inverse ? fact.subjects().size() - 1 : 0);
+                personMatch = people.contains(normalize(endpoint));
             }
             boolean relevant;
             if (relationship) relevant = !unresolvedPair && fact.type().equals("relationship") && personMatch
@@ -378,6 +385,9 @@ public final class LoreEngine {
         Map<String, Object> object = new LinkedHashMap<>();
         object.put("kind", kind); object.put("title", fact.id()); object.put("source", "knowledge.yml");
         object.put("recordType", fact.type()); object.put("subjects", fact.subjects());
+        if (!fact.relation().isBlank()) {
+            object.put("relation", fact.relation()); object.put("from", fact.from()); object.put("to", fact.to());
+        }
         if (!fact.offices().isEmpty()) object.put("offices", fact.offices());
         object.put("text", fact.text());
         return JSON.toJson(object) + "\n";

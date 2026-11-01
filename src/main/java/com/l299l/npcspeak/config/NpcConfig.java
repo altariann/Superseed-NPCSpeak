@@ -8,6 +8,7 @@ public class NpcConfig {
     private String systemPrompt;
     private String topic;
     private String avoid;
+    private String knowledgeEntity;
     private NpcTaskConfig task;
     private Boolean memoryEnabled;
     private Boolean singlePlayer;
@@ -95,6 +96,7 @@ public class NpcConfig {
     public String getSystemPrompt() { return systemPrompt; }
     public String getTopic() { return topic; }
     public String getAvoid() { return avoid; }
+    public String getKnowledgeEntity() { return knowledgeEntity; }
     public NpcTaskConfig getTask() { return task; }
     public Boolean getMemoryEnabled() { return memoryEnabled; }
     public Boolean getSinglePlayer() { return singlePlayer; }
@@ -106,6 +108,7 @@ public class NpcConfig {
     public void setSystemPrompt(String systemPrompt) { this.systemPrompt = systemPrompt; }
     public void setTopic(String topic) { this.topic = topic; }
     public void setAvoid(String avoid) { this.avoid = avoid; }
+    public void setKnowledgeEntity(String knowledgeEntity) { this.knowledgeEntity = knowledgeEntity; }
     public void setTask(NpcTaskConfig task) { this.task = task; }
     public void setMemoryEnabled(Boolean memoryEnabled) { this.memoryEnabled = memoryEnabled; }
     public void setSinglePlayer(Boolean singlePlayer) { this.singlePlayer = singlePlayer; }
