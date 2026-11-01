@@ -2,6 +2,7 @@ package com.l299l.npcspeak.npc;
 
 import com.l299l.npcspeak.config.NpcConfigLoader;
 import com.l299l.npcspeak.knowledge.KnowledgeBase;
+import com.l299l.npcspeak.knowledge.HybridReadiness;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -32,6 +33,18 @@ public class NpcManager {
             provider.restoreOrSpawn(data);
             trackEntityUUID(data);
             trySave(data);
+            if (data.getConfig().getKnowledgeEntity() != null && KnowledgeBase.wasLastReloadSuccessful()) {
+                try {
+                    var jar = java.nio.file.Path.of(HybridReadiness.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+                    plugin.getLogger().info(HybridReadiness.marker(data.getId(), data.getConfig().getKnowledgeEntity(),
+                            data.getCitizensId(), data.getConfig().isFreeformConversation(), KnowledgeBase.snapshot(),
+                            HybridReadiness.sha256(plugin.getDataFolder().toPath().resolve("knowledge.yml")), HybridReadiness.sha256(jar))
+                            + " NPC_SHA256 " + HybridReadiness.sha256(configLoader.getFile(data.getId()).toPath()));
+                } catch (Exception error) {
+                    // Never log YAML, entity labels, source text, paths or exception contents.
+                    plugin.getLogger().warning("Hybrid readiness unavailable; check the private deployment validation.");
+                }
+            }
         }
     }
 

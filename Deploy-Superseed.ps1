@@ -1,7 +1,9 @@
 ﻿#Requires -Version 5.1
 [CmdletBinding(SupportsShouldProcess)]
 param(
-    [ValidateSet('Inspect', 'Build', 'Deploy')][string]$Mode = 'Inspect',
+    [ValidateSet('Inspect', 'Build', 'Preview', 'Deploy')][string]$Mode = 'Inspect',
+    [string]$MigrationManifest = '',
+    [string]$ExpectedPlanSha256 = '',
     [string]$ServerRoot = '',
     [string]$LocalSettingsPath = '',
     [string]$StartBat = 'START.bat',
@@ -20,6 +22,7 @@ if ([string]::IsNullOrWhiteSpace($LocalSettingsPath)) {
     $LocalSettingsPath = Join-Path $RepoRoot 'Deploy-Superseed.local.json'
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+. (Join-Path $RepoRoot 'scripts\Hybrid-Deployment.ps1')
 
 function Resolve-DeploymentServerRoot([string]$ExplicitRoot, [string]$SettingsPath) {
     $configured = $ExplicitRoot
@@ -208,6 +211,7 @@ function Invoke-ProjectBuild([string]$Jdk) {
             & (Join-Path $RepoRoot 'gradlew.bat') clean build --console=plain | ForEach-Object { Write-Host $_ }
             if ($LASTEXITCODE -ne 0) { throw "Gradle başarısız (çıkış $LASTEXITCODE). Sunucuya dokunulmadı." }
             & (Join-Path $RepoRoot 'tests\Test-Deployment.ps1')
+            & (Join-Path $RepoRoot 'tests\Test-HybridDeployment.ps1')
             & (Join-Path $RepoRoot 'tests\Test-LoreSnapshot.ps1')
             & (Join-Path $RepoRoot 'tests\Test-LorePilot.ps1')
         } finally { Pop-Location }
@@ -230,12 +234,13 @@ function Start-ServerBat([string]$Root, [string]$Bat, [string]$Java) {
     } finally { $env:PATH = $oldPath; $env:JAVA_HOME = $oldHome }
 }
 
-function Get-StartupLogStatus([string]$Text, [string[]]$KnownPluginNames = @()) {
+function Get-StartupLogStatus([string]$Text, [string[]]$KnownPluginNames = @(), [string]$ExpectedHybridMarker = '') {
     $fatal = [Collections.Generic.List[string]]::new()
     $otherPluginErrors = 0
     $npcStarted = $false
     $citizensStarted = $false
     $done = $false
+    $hybridReady = !$ExpectedHybridMarker
     # Keep stack traces with the event that owns them; a bare Exception search loses attribution.
     $events = [regex]::Split($Text, '(?m)(?=^\[(?:\d{2}:\d{2}:\d{2}(?:\.\d+)?\]\s*\[)?[^\]\r\n]+\](?:\s|:)|^Done \()')
     $platformLoggers = @('Minecraft', 'Paper', 'PluginInitializerManager', 'PaperPluginInstanceManager', 'JavaPluginLoader', 'PluginClassLoader')
@@ -264,6 +269,7 @@ function Get-StartupLogStatus([string]$Text, [string[]]$KnownPluginNames = @()) 
             $fatal.Add('SERVER_STOPPING')
         }
         if ($owner -in @('NPCSpeak', 'Citizens')) {
+            if ($owner -eq 'NPCSpeak' -and $ExpectedHybridMarker -and $firstLine -match ([regex]::Escape($ExpectedHybridMarker)+'(?:\s|$)')) { $hybridReady=$true }
             if ($errorEvent -or $exception -or $failureText -or $firstLine -match '(?i)\bDisabling (?:NPCSpeak|Citizens)\b') {
                 $fatal.Add('TARGET_PLUGIN_FAILURE')
             }
@@ -281,7 +287,7 @@ function Get-StartupLogStatus([string]$Text, [string[]]$KnownPluginNames = @()) 
         if (!$namedPlugin -and $firstLine -match '\bDone \([\d.,]+s\)!' -and $npcStarted -and $citizensStarted) { $done = $true }
     }
     return [pscustomobject]@{
-        Ready = $npcStarted -and $citizensStarted -and $done -and $fatal.Count -eq 0
+        Ready = $npcStarted -and $citizensStarted -and $done -and $hybridReady -and $fatal.Count -eq 0
         FatalReasons = @($fatal | Sort-Object -Unique)
         OtherPluginErrorCount = $otherPluginErrors
     }
@@ -300,7 +306,7 @@ function Get-LogHeader([string]$Root) {
 
 function Wait-ServerReady {
     [CmdletBinding()]
-    param([string]$Root, [hashtable]$Properties, [string]$BatText, [datetime]$Since, [int]$Timeout, [string]$OldHeader, [string[]]$KnownPluginNames = @())
+    param([string]$Root, [hashtable]$Properties, [string]$BatText, [datetime]$Since, [int]$Timeout, [string]$OldHeader, [string[]]$KnownPluginNames = @(), [string]$ExpectedHybridMarker = '')
     $deadline = [datetime]::UtcNow.AddSeconds($Timeout)
     $log = Join-Path $Root 'logs\latest.log'
     while ([datetime]::UtcNow -lt $deadline) {
@@ -308,7 +314,7 @@ function Wait-ServerReady {
             $text = [IO.File]::ReadAllText($log)
             # Never accept the previous boot's Done/Enabling lines during log rotation.
             if ($OldHeader -and $text.StartsWith($OldHeader)) { Start-Sleep -Seconds 2; continue }
-            $status = Get-StartupLogStatus $text $KnownPluginNames
+            $status = Get-StartupLogStatus $text $KnownPluginNames $ExpectedHybridMarker
             if ($status.FatalReasons.Count -gt 0) {
                 throw "Yeni başlangıçta kritik veya NPCSpeak/Citizens hatası: $($status.FatalReasons -join ', '). Ayrıntılar yerel logs/latest.log dosyasında."
             }
@@ -335,6 +341,11 @@ function Invoke-Deployment {
         return
     }
     $root = Resolve-DeploymentServerRoot $ServerRoot $LocalSettingsPath
+    if ($MigrationManifest -or $Mode -eq 'Preview') {
+        if (!$MigrationManifest) { throw 'Önizleme için açık MigrationManifest gerekli.' }
+        Invoke-HybridDeployment -Root $root -ManifestPath $MigrationManifest -WhatIf:$WhatIfPreference
+        return
+    }
     if ((Get-Item -LiteralPath $root).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Sunucu kökü junction olamaz.' }
     if ($StartBat -ne [IO.Path]::GetFileName($StartBat) -or [IO.Path]::GetExtension($StartBat) -ne '.bat') {
         throw 'StartBat sunucu ana klasöründeki bir BAT dosyası olmalı.'

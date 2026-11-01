@@ -84,6 +84,16 @@ tasks.register<JavaExec>("hybridPilot") {
          "--case", providers.gradleProperty("hybridCase").getOrElse(""))
 }
 
+tasks.register<JavaExec>("prepareHybridDeployment") {
+    group = "verification"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.l299l.npcspeak.knowledge.DeploymentPlanPreparation")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    args("--recipe", providers.gradleProperty("deploymentRecipe").getOrElse(""),
+         "--output", providers.gradleProperty("deploymentOutput").getOrElse(""))
+}
+
 tasks {
     runServer {
         // Configure the Minecraft version for our task.
