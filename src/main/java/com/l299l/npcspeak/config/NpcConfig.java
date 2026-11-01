@@ -98,6 +98,7 @@ public class NpcConfig {
     public String getAvoid() { return avoid; }
     public String getKnowledgeEntity() { return knowledgeEntity; }
     public NpcTaskConfig getTask() { return task; }
+    public boolean isFreeformConversation() { return task == null || "freeform".equalsIgnoreCase(task.getType()); }
     public Boolean getMemoryEnabled() { return memoryEnabled; }
     public Boolean getSinglePlayer() { return singlePlayer; }
     public int getMaxInteractions() { return maxInteractions; }

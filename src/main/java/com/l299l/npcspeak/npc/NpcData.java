@@ -58,6 +58,9 @@ public class NpcData {
         }
 
         NpcConfig config = new NpcConfig();
+        if (yaml.contains("knowledge-entity") && !yaml.isString("knowledge-entity")) {
+            throw new IllegalArgumentException("knowledge-entity must be an explicit entity name");
+        }
         config.setKnowledgeEntity(yaml.getString("knowledge-entity"));
         if (yaml.isConfigurationSection("personality")) {
             config.setGreeting(yaml.getString("personality.greeting"));

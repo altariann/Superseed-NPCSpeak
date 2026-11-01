@@ -1,5 +1,9 @@
 # Kaynak doğrulamalı hibrit cevap mimarisi — tasarım önerisi
 
+Sonraki durum: temel yaklaşım onaylandı ve dar ilk sürüm uygulandı.
+[Uygulama, test sonuçları ve kalan sınırlar](hybrid-answer-results.md).
+Aşağıdaki metin, uygulama öncesinde sunulan tasarım kaydıdır.
+
 1 Kasım 2026. Durum: **uygulanmadı, kullanıcı incelemesine sunulan tasarım**.
 Bu çalışma kod, model ayarı, gerçek NPC/knowledge dosyası veya sunucu değişikliği
 içermez. Model çağrısı yapılmadı. B03 hatası çözülmüş sayılmaz.

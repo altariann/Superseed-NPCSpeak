@@ -26,6 +26,24 @@ public final class GroundedPrompt {
 
     private GroundedPrompt() {}
 
+    public static List<AiMessage> messages(String instructions, String persona, String memory,
+                                         List<AiMessage> history, String question, LoreEngine engine,
+                                         SpeakerContext speaker, AnswerPlan plan) {
+        String identity = "\nNARRATOR_IDENTITY_DATA (JSON): " + JSON.toJson(speaker)
+                + "\nQUESTION_FRAME_DATA (JSON): " + JSON.toJson(plan.query())
+                + "\nThe narrator and the question's subject are separate identities. First person refers only to the narrator."
+                + " Never take another person's office as your own. Only an explicit knowledgeEntity binding establishes factual self identity."
+                + " Personality, display name and task instructions do not establish offices or reporting lines.\n";
+        if (plan.guarded()) {
+            identity += "\nVERIFIED_ANSWER_DATA (JSON string): " + JSON.toJson(plan.sourceAnswer())
+                    + "\nFor this mixed turn, reproduce the verified answer exactly. You may append only one of these reviewed chat sentences:"
+                    + " İyiyim, teşekkür ederim. / Sohbete de devam edebiliriz. Do not add any other factual claim.\n";
+        }
+        var messages = messages(instructions, persona, memory, history, question, engine);
+        messages.set(0, new AiMessage("system", messages.get(0).content() + identity));
+        return messages;
+    }
+
     public static String referenceSection(LoreEngine.Result result) {
         return RULES + "\nRETRIEVAL_STATUS: " + result.status()
                 + "\nRELEVANT_WIKI_EXCERPTS: " + result.wikiCount()

@@ -56,4 +56,18 @@ class DirectedRecordsTest {
         assertNull(config.getKnowledgeEntity());
         assertFalse(new SpeakerContext("dogan-tirpan", "Doğan Tırpan", null).isSelf("Doğan Tırpan"));
     }
+    @Test void nonStringKnowledgeBindingIsRejected() throws Exception {
+        Path file = root.resolve("invalid-npc.yml");
+        Files.writeString(file, "knowledge-entity: [Doğan Tırpan, Tech]\n");
+        assertThrows(IllegalArgumentException.class, () -> NpcData.fromFile("npc", file.toFile()));
+    }
+    @Test void typedDirectionDoesNotDependOnLegacyParticipantOrdering() throws Exception {
+        load("    relation: reports_to\n    from: Doğan Tırpan\n    to: Tech\n");
+        Path path = root.resolve("knowledge.yml");
+        Files.writeString(path, Files.readString(path).replace("subjects: [Doğan Tırpan, Tech]", "subjects: [Tech, Doğan Tırpan]"));
+        var engine = KnowledgeBase.load(root);
+        assertTrue(engine.retrieve("Doğan Tırpan kime bağlı?").hasSources());
+        assertTrue(engine.retrieve("Tech'e kim bağlı?").hasSources());
+        assertFalse(engine.retrieve("Tech kime bağlı?").hasSources());
+    }
 }

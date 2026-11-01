@@ -2,6 +2,11 @@ package com.l299l.npcspeak.conversation;
 
 import com.l299l.npcspeak.knowledge.KnowledgeBase;
 import com.l299l.npcspeak.knowledge.GroundedPrompt;
+import com.l299l.npcspeak.knowledge.AnswerPlan;
+import com.l299l.npcspeak.knowledge.AnswerPlanner;
+import com.l299l.npcspeak.knowledge.HybridAnswerService;
+import com.l299l.npcspeak.knowledge.LoreEngine;
+import com.l299l.npcspeak.knowledge.SpeakerContext;
 
 import com.l299l.npcspeak.ai.AiBackend;
 import com.l299l.npcspeak.ai.AiMessage;
@@ -340,13 +345,16 @@ public class ConversationManager {
     }
 
     private void dispatchToBackend(Player player, NpcData npc, ConversationSession session, String text) {
-        List<AiMessage> messages = buildConversationMessages(player, npc, session, text);
+        var lore = KnowledgeBase.snapshot();
+        var speaker = new SpeakerContext(npc.getId(), npc.getDisplayName(), npc.getConfig().getKnowledgeEntity());
+        boolean freeform = npc.getConfig().isFreeformConversation();
+        AnswerPlan plan = new AnswerPlanner().plan(text, speaker, lore, session.getReplySequence(), freeform);
 
-        CompletableFuture<String> future;
-        if (streamingEnabled) {
-            StringBuilder buffer = new StringBuilder();
-            AtomicLong lastUpdateMs = new AtomicLong(0);
-            future = backend.streamComplete(messages, token -> {
+        StringBuilder buffer = new StringBuilder();
+        AtomicLong lastUpdateMs = new AtomicLong(0);
+        CompletableFuture<String> future = new HybridAnswerService().answer(plan,
+                () -> buildConversationMessages(player, npc, session, text, lore, speaker, plan, freeform),
+                backend, streamingEnabled, token -> {
                 buffer.append(token);
                 long now = System.currentTimeMillis();
                 if (now - lastUpdateMs.get() < 80) return;
@@ -358,10 +366,7 @@ public class ConversationManager {
                         player.sendActionBar(Component.text(preview, NamedTextColor.WHITE));
                     }
                 });
-            });
-        } else {
-            future = backend.complete(messages);
-        }
+            }).thenApply(outcome -> outcome.text());
 
         future.thenAccept(response -> {
             // An old AI result must not leak into a new citizen's conversation.
@@ -401,10 +406,12 @@ public class ConversationManager {
     }
 
     private List<AiMessage> buildConversationMessages(Player player, NpcData npc,
-                                                      ConversationSession session, String userText) {
+                                                      ConversationSession session, String userText, LoreEngine lore,
+                                                      SpeakerContext speaker, AnswerPlan plan, boolean freeform) {
         String systemPrompt = PapiExpander.expand(player, npc.getConfig().buildSystemPrompt(npc.getDisplayName()));
         Map<String, String> playerMemory = cachedMemory.get(player.getUniqueId());
-        var lore = KnowledgeBase.snapshot();
+        if (freeform) return GroundedPrompt.messages(systemPrompt, lore.persona(npc.getId()),
+                playerMemory == null ? null : playerMemory.get(npc.getId()), session.getHistory(), userText, lore, speaker, plan);
         return GroundedPrompt.messages(systemPrompt, lore.persona(npc.getId()),
                 playerMemory == null ? null : playerMemory.get(npc.getId()), session.getHistory(), userText, lore);
     }
