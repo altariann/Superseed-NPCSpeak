@@ -2,6 +2,8 @@
 
 Durum: **AI'sız Aşama A yürütüldü; B pilotu üçüncü yanıttaki kaynak dışı ilişki
 nedeniyle durduruldu. C çalıştırılmadı.** [B raporu](stage-b-results.md).
+Sonraki [B03 kaynak düzeltmesi](b03-offline-review.md) yalnız çevrimdışı doğrulandı;
+yeni model isteği kullanıcı onayını bekliyor.
 Gerçek sonuçlar ve insan doğrulaması sınırı [Aşama A raporundadır](stage-a-results.md).
 Bu plan kendi başına ölçülmüş başarı veya canlı dağıtım onayı değildir. Çalışma mevcut development
 dalı ve PR #2 üzerinde devam eder; yeni PR veya otomatik merge gerektirmez.

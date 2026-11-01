@@ -3,6 +3,9 @@
 1 Kasım 2026. **Pilot üçüncü yanıtta durduruldu; geçmedi.** Aşama C'ye,
 canlı dağıtıma veya otomatik tekrar koşusuna geçilmedi.
 
+Sonraki çevrimdışı inceleme ve atomik kayıt düzeltmesi
+[B03 raporundadır](b03-offline-review.md). Yeni B03 model çağrısı yapılmadı.
+
 ## Deney koşulları
 
 - Aşama A'nın yalnız özel alanda güncel kayıtlarla tamamlanan profili kullanıldı;

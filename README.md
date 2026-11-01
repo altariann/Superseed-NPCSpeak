@@ -143,6 +143,58 @@ içi kontrollerin yerini tutmaz. Lore değişiklikleri aşağıda açıklanmış
 
 ### Superseed v5: kaynaklara bağlı lore araması ve yönetici tanısı
 
+**B03 durumu:** atomik belediye kayıtları ve kişi/ilişki seçimi çevrimdışı
+doğrulandı. Yeni Gemma isteği gönderilmedi; yeniden test kullanıcı onayını
+bekliyor. Eski/yeni kaynak farkları, 89 Java testi ve 750 sorgu karşılaştırması
+[B03 inceleme raporunda](docs/b03-offline-review.md).
+
+`knowledge.yml` içindeki yeni `municipal-records` listesi şu alanları kullanır:
+
+```yaml
+municipal-records:
+  - id: mayor-tech
+    type: office
+    subjects: ['Tech']
+    offices: ['Belediye Başkanı']
+    current: true
+    text: 'Tech, Superseed Belediye Başkanıdır.'
+  - id: dogan-reports-to-tech
+    type: relationship
+    subjects: ['Doğan Tırpan', 'Tech']
+    keywords: ['bağlı', 'ilişki', 'ilişkisi', 'amiri']
+    current: true
+    text: "Doğan Tırpan, Belediye Başkanı Tech'e bağlıdır."
+```
+
+Tam örnekte üç kişinin makamları ve Doğan'ın yetenekleri ayrı kayıtlardır.
+`id`, `type`, `subjects`, `current`, `text` zorunlu; ID tekil, metin boş
+olmamalı. `office` tek kişi ve en az bir tam `offices` başlığı ister;
+`fact` tek kişinin ek bilgisidir. `relationship` iki açık katılımcı ister;
+bağlılık kaydında sıra **bağlı kişi, bağlı olunan kişi** şeklindedir. Metinde
+ilişkiyi de açık yazın. İlişki kayıtlarındaki `keywords` isteğe bağlı sorgu ifadeleridir; varsa en
+az birinin soruda eşleşmesi gerekir. Makam adları kişilerin alias'ı değildir.
+
+Bu liste mevcutsa eski geniş `municipality` metni kaynaklara eklenmez.
+Boş/bozuk liste reload'u başarısız kılar ve önceki indeks korunur; eski metne
+sessizce dönülmez. Liste yoksa eski YAML davranışı devam eder. Geçiş sırasında
+hâlâ gereken bütün belediye bilgilerini atomik kayıtlara taşıyın; canlı dosya
+otomatik dönüştürülmez. Belediye dışı `verified-facts` ve `aliases` desteklenir.
+`current: false` tarihsel doğrulanmış kayıttır; açık eski/tarihsel sorularda
+kullanılır, bugünkü makamın kanıtı sayılmaz. Tam Türkçe dil çözümlemesi yoktur.
+
+Güncel kişi/makam ve doğrulanmış bağlılık sorularında wiki'den makam/ilişki
+çıkarımı yapılmaz. Kayıt eksikse `NO_VERIFIED_MUNICIPAL_RECORD`; wiki adayında
+`REJECT_REQUIRES_VERIFIED_MUNICIPAL_RECORD` tanısı görünür. Makam kıyaslaması
+yalnız ilgili kişilerin makamlarını getirir, aralarında bağlılık üretmez.
+Kişilik anahtarı önce tam eşleşir; yoksa yalnız `-`/`_` farkına göre tekil
+eşleşme aranır. Çakışma varsa tahmin edilmez; NPC/Citizens ID'si değiştirilmez.
+
+Özel değerlendirmede yapılandırma metni taşınmışsa isteğe bağlı
+`-PloreEvidenceData=<eski-özel-veri-yolu>` eski dondurulmuş kanıtları doğrulamak
+için kullanılabilir; arama hâlâ `loreData` üzerinde çalışır. Raporda her iki
+knowledge hash'i ve ayrı kanıt profili kullanıldığı yazılır. Eski cümle
+eşleşmemesi başarısızlık olarak kalır; bu seçenek beklentileri değiştirmez.
+
 Lore motoru `knowledge.yml` ile `knowledge/wiki/*.txt` dosyalarını başlangıçta
 ve `/npcspeak reload` sırasında belleğe alır. Sohbet sırasında disk/ağ erişimi,
 embedding modeli veya ek AI çağrısı yoktur. Özel wiki arşivi sunucuda kalır;
@@ -180,7 +232,7 @@ toplamıdır. Eşit puanlar başlık/kaynak/pasaj sırasıyla deterministik çö
 
 Bilgi önceliği:
 
-1. `knowledge.yml` içindeki açıkça doğrulanmış güncel kayıtlar. Eski `municipality`
+1. `knowledge.yml` içindeki açıkça doğrulanmış güncel kayıtlar. `municipal-records` yoksa eski `municipality`
    alanı güncel kayıt sayılır ve artık tüm NPC'lerce kullanılabilir.
 2. İlgili wiki alıntıları. Bunlar tarihsel olabileceği için güncel görev/atama
    veya sahiplik belgesi sayılmaz.
@@ -216,10 +268,10 @@ kanonik gruba verilirse yükleme reddedilir. Satır içi noktalı varlık adlar�
 Tanı komutu:
 
 ```text
-/npcspeak lore dogan_tirpan Plaza AVM'nin eski adı nedir?
-/npcspeak lore dogan_tirpan Belediye başkanı kimdir?
-/npcspeak lore dogan_tirpan Pursuing Evidence kim tarafından yapıldı?
-/npcspeak lore dogan_tirpan Olmayan Zümrüt Sarayı'nın sahibi kim?
+/npcspeak lore dogan-tirpan Plaza AVM'nin eski adı nedir?
+/npcspeak lore dogan-tirpan Belediye başkanı kimdir?
+/npcspeak lore dogan-tirpan Pursuing Evidence kim tarafından yapıldı?
+/npcspeak lore dogan-tirpan Olmayan Zümrüt Sarayı'nın sahibi kim?
 ```
 
 Komut `npcspeak.admin` **ve** `npcspeak.lore.debug` yetkilerini gerektirir;
