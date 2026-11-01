@@ -67,6 +67,23 @@ tasks.register<JavaExec>("prepareLorePilot") {
          "--output", providers.gradleProperty("loreOutput").getOrElse(""))
 }
 
+// Explicit local export/replay only. This task never makes model calls.
+tasks.register<JavaExec>("hybridPilot") {
+    group = "verification"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.l299l.npcspeak.knowledge.HybridPilot")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    args("--mode", providers.gradleProperty("hybridMode").getOrElse("prepare"),
+         "--data", providers.gradleProperty("loreData").getOrElse(""),
+         "--style", providers.gradleProperty("pilotStyle").getOrElse(""),
+         "--cases", providers.gradleProperty("pilotCases").getOrElse(""),
+         "--output", providers.gradleProperty("loreOutput").getOrElse(""),
+         "--npc", providers.gradleProperty("pilotNpc").getOrElse(""),
+         "--model", providers.gradleProperty("pilotModel").getOrElse(""),
+         "--case", providers.gradleProperty("hybridCase").getOrElse(""))
+}
+
 tasks {
     runServer {
         // Configure the Minecraft version for our task.

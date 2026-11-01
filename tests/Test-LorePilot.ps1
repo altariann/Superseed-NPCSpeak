@@ -26,6 +26,20 @@ try {
     $RequestFile=$file;$ResponseFile=Join-Path $root 'existing.json';[IO.File]::WriteAllText($ResponseFile,'preserve')
     Assert-Throws {Invoke-PilotRequest} 'Var olan yanıtta ağ isteği yapılmamalı.'
     Assert-True ([IO.File]::ReadAllText($ResponseFile) -eq 'preserve') 'Var olan yanıt korunmalı.'
+    # Host-state alternatives are exercised with local stubs; no CIM/network/process mutation.
+    function Get-CimInstance {
+        param([string]$ClassName)
+        if ($ClassName -eq 'Win32_OperatingSystem') { return [pscustomobject]@{FreePhysicalMemory=4194304} }
+        return $script:serverCandidates
+    }
+    function Get-Process { [CmdletBinding()]param() @() }
+    $NoMinecraftProcess=$true;$script:serverCandidates=@()
+    Assert-True ((Get-PilotHostState 0).MinecraftProcessAbsent) 'Açık sunucu yok modu kayda geçmeli.'
+    Assert-Throws {Get-PilotHostState 42} 'Sunucu yok modunda sahte PID kabul edilmemeli.'
+    $script:serverCandidates=@([pscustomobject]@{Name='java.exe';CommandLine='java -jar paper.jar'})
+    Assert-Throws {Get-PilotHostState 0} 'Olası Java sunucusu varsa sunucu yok modu reddedilmeli.'
+    $NoMinecraftProcess=$false
+    Assert-Throws {Get-PilotHostState 0} 'Varsayılan mod açık sunucu PID gereksinimini korumalı.'
     Write-Host "Pilot aracı: $checks çevrimdışı denetim başarılı; ağ/model kullanılmadı."
 } finally {
     $resolved=[IO.Path]::GetFullPath($root)

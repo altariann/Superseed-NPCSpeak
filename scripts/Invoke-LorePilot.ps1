@@ -6,6 +6,7 @@ param(
     [string]$Endpoint = 'http://127.0.0.1:11434/api/chat',
     [ValidateRange(1, 600)][int]$TimeoutSeconds = 120,
     [int]$ServerProcessId = 0,
+    [switch]$NoMinecraftProcess,
     [string]$ExpectedModelDigest = '',
     [ValidateRange(256, 65536)][int]$MinimumAvailableMB = 1024
 )
@@ -37,8 +38,16 @@ function Get-PilotHostState([int]$ServerId) {
     $os = Get-CimInstance Win32_OperatingSystem
     $processes = @(Get-Process -ErrorAction Stop | Where-Object {$_.Id -eq $ServerId -or $_.ProcessName -like 'ollama*'} |
         Select-Object Id,ProcessName,CPU,WorkingSet64)
-    if ($ServerId -le 0 -or @($processes | Where-Object Id -eq $ServerId).Count -ne 1) { throw 'İzlenecek sunucu PID değeri açıkça verilmeli ve mevcut olmalı.' }
-    return @{Utc=[datetime]::UtcNow.ToString('o');AvailableMB=[math]::Round($os.FreePhysicalMemory/1024);Processes=$processes}
+    if ($NoMinecraftProcess) {
+        if ($ServerId -ne 0) { throw 'Sunucu yok modu ile izlenen PID birlikte kullanılamaz.' }
+        $candidates = @(Get-CimInstance Win32_Process | Where-Object {
+            $_.Name -match '^java(w)?\.exe$' -and $_.CommandLine -match '(?i)-jar\s|paper|purpur|spigot|net\.minecraft'
+        })
+        if ($candidates.Count -gt 0) { throw 'Sunucu yok modu doğrulanamadı; olası Java sunucusu mevcut.' }
+    } elseif ($ServerId -le 0 -or @($processes | Where-Object Id -eq $ServerId).Count -ne 1) {
+        throw 'İzlenecek sunucu PID değeri açıkça verilmeli ve mevcut olmalı.'
+    }
+    return @{Utc=[datetime]::UtcNow.ToString('o');AvailableMB=[math]::Round($os.FreePhysicalMemory/1024);Processes=$processes;MinecraftProcessAbsent=[bool]$NoMinecraftProcess}
 }
 function Invoke-PilotRequest {
     $uri = Assert-PilotEndpoint $Endpoint

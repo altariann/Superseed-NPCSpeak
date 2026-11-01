@@ -1,5 +1,9 @@
 # Hibrit cevap mimarisi — ilk sürüm ve çevrimdışı sonuçlar
 
+Sonraki aşama: [küçük gerçek Gemma pilotu, güvenlik düzeltmeleri ve geçiş planı](hybrid-gemma-pilot-results.md).
+Aşağıdaki metin ilk sürümün pilot öncesi sonuç kaydıdır; sonraki filtre düzeltmeleri
+ve güncel test sayıları yeni rapordadır.
+
 1 Kasım 2026. İlk sürüm uygulandı ve çevrimdışı doğrulandı. **Canlıya kurulmadı;
 gerçek Gemma ve oyun içi kabul testi yapılmadı.** Önceki iki B03 model denemesinin
 başarısız sonuçları geçerlidir; bu sürüm modelin düzeldiği iddiasında bulunmaz.
