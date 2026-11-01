@@ -18,6 +18,8 @@ Güncel kullanıcı talimatı bu notlardan önceliklidir; notlar onay belgesi de
 | Stop sonrası hata dosya durumuna göre ayrılır | Dosya yazılmadıysa veya geri yazım doğrulandıysa özgün sunucu aynı BAT ile açılır; sunucu sebepsiz kapalı bırakılmaz. Kapanış doğrulanamadıysa hiçbir şey başlatılmaz. |
 | Rollback yalnız onaylı dosyaları kapsar | Citizens, wiki, mesaj, oyuncu hafızası ve dünyayı topluca geri sarma. Güvenli kapanış/geri alma doğrulanamıyorsa riskli yazmaya devam etme. Makbuzsuz NPC değişikliği dış düzenleme sayılır ve ezilmez. |
 | Plan kişilik metnini kendiliğinden değiştirmez | Eski kişilik cümlesi ayrı içerik kararıdır; değişecekse reçetede açık eski/yeni metinle yeni plan üretilir. |
+| Eski plan silinmez, zorunlu olarak geçersiz kılınır | `SUPERSEDED.txt` taşıyan plan Preview/Deploy'da reddedilir. Canlı hash'ler aynı olduğundan yalnız not bırakmak eski planın kurulmasını engellemez. |
+| Güncel kişi ve makamlar `municipal-records` içinde yönetilir | Kişilik metinleri kayıtlara yönlendirir; başkan veya görevli adı kişiliğe yazılmaz. |
 | JDK 26, ana hedef Java 17; gerçek test kanıtı | Yeni taslağı önceki 136/99 sonucuyla başarılı gösterme. Sahte Bukkit/sunucu testleri oyun içi kabul veya TPS ölçümü değildir. |
 | Tek çalışma ağacında tek yazan ajan | Önce Git durumu, STATE ve HANDOFF okunur. Önceki ajanın yarım işini resetleme/ezme; doğrulanmış işi gerekmedikçe tekrarlama. |
 | Mevcut dal ve PR ilişkisi korunur | PR #2, PR #1'in `dev/superseed-source` tabanındadır. Küçük düzeltmeler için yeni PR açma; master'a otomatik push/merge yapma. |

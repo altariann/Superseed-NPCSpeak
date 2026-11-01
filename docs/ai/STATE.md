@@ -1,11 +1,11 @@
 # Proje durumu
 
-Son doğrulama: **1 Kasım 2026 21:32, Europe/Istanbul**. Bu dosya güncel durum özetidir;
+Son doğrulama: **1 Kasım 2026 21:44, Europe/Istanbul**. Bu dosya güncel durum özetidir;
 son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS](../../AGENTS.md).
 
 ## Git ve kabul durumu
 
-- Dal: `dev/superseed-automation`. Doğrulanan son uygulama commit'i: `c08cbf3`.
+- Dal: `dev/superseed-automation`. Doğrulanan son uygulama commit'i: `e73ba31`.
   Bu belgelerin commit'i bunun üzerine gelir; gerçek HEAD'i Git'ten oku.
 - [PR #2](https://github.com/altariann/Superseed-NPCSpeak/pull/2) açık;
   head `dev/superseed-automation`, base `dev/superseed-source`.
@@ -13,7 +13,7 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
   head `dev/superseed-source`, base `master`. Kaynak tabanı korunur.
 - `9b55873` mimari, `aeccff0`/`cd60e32` ilk uygulama,
   `2589220` oturum/filtre güvenliği, `0e115f5` pilot aracı ve sonuç raporu,
-  `c08cbf3` üç dosyalı güvenli dağıtım hazırlığıdır.
+  `c08cbf3` üç dosyalı güvenli dağıtım hazırlığı, `e73ba31` geçersiz plan koruması.
 - Devralınan yedi taslak dosya tamamlanıp commit'lendi. Çevrimdışı hazırlık bitti;
   canlı geçiş ayrı kullanıcı onayı bekliyor.
 
@@ -36,9 +36,9 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
 ## Doğrulanan son sonuçlar
 
 - JDK 26.0.2; ana Java hedefi 17 / major 61.
-- **143 Java testi, 0 başarısızlık/hata/atlama; 222 PowerShell denetimi**
-  (73 dağıtım + 123 üç dosyalı dağıtım + 11 snapshot + 15 pilot). Temiz
-  `Deploy-Superseed.ps1 -Mode Build` başarılı; kanıt zamanı 1 Kasım 21:30 İstanbul.
+- **144 Java testi, 0 başarısızlık/hata/atlama; 224 PowerShell denetimi**
+  (73 dağıtım + 125 üç dosyalı dağıtım + 11 snapshot + 15 pilot). Temiz
+  `Deploy-Superseed.ps1 -Mode Build` başarılı; kanıt zamanı 1 Kasım 21:44 İstanbul.
   Java sayısı XML raporlarından okundu. JAR: test sınıfı/wiki yok, major 61,
   SHA256 `5bddbd93…de91a6`.
 - Üç dosyalı senaryolar sahte sunucu ağacı ve mock yaşam döngüsüyle sınandı.
@@ -56,16 +56,24 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
   ayrı doğrulanmış kendilik kanıtı eksik. İğneleyici/gösterişli ton kalıcı doğrulanmadı.
 - Karşılaştırma, tarih/yıl/gelecek, genel ilişkiler ve karmaşık karışık niyetler
   deterministik kapsamda değil. Serbest sohbetin tüm olguları doğrulanmış sayılmaz.
-- Gerçek dosyalar yalnız okunarak özel plan üretildi; 6 yerel kontrol ve Preview
-  geçti. Kişilikteki eski "başkan adı verilmedi" ifadesi planda **değiştirilmedi**;
-  ayrı içerik kararıdır. Legacy municipality alanı yeni kayıtlarla gölgelenir.
+- Geçerli özel plan `plan-20261101-214422`: gerçek dosyalar yalnız okundu, 6 yerel
+  kontrol ve Preview geçti. Kullanıcının verdiği metin eski "başkan adı verilmedi"
+  ifadesinin yerine yalnız adayda kondu; NPC adayı beklenen baytlarla birebir eşleşti.
+  Önceki plan `SUPERSEDED.txt` ile işaretlendi ve betik onu reddediyor.
+- Güncel kişi/makam bilgisi `municipal-records` içindedir; legacy municipality
+  gölgelenir. NPC ve `characters` kişiliklerinde anlatıcının kendi makamını söyleyen
+  ifade kaldı; kullanıcı kapsamı gereği değiştirilmedi. Tarihsel wiki ayrıca okunur.
+- Sunucuda `spigot.yml` içinde `restart-on-crash: true` ve `restart-script: START.bat`
+  **etkin**. Normal RCON stop'ta beklenmez; watchdog çökmesi veya `restart` komutunda
+  devreye girebilir ve başarısız açılışın geri alınmasıyla yarışabilir. Canlı dosya
+  değiştirilmedi; karar kullanıcıda. Başka otomatik yeniden başlatıcı bulunmadı.
 - Paper yeniden eşleme yaparsa açılış JAR hash'i eşleşmez. Mevcut `.paper-remapped`
   listesinde NPCSpeak görünmüyor, ama bu oyun içinde kanıtlanmadı; eşleşmezse
   dağıtım zaman aşımıyla geri alınır.
 - Eski JAR'ın stop kaydı NPC baytlarını değiştirirse işlem yazmadan durur ve özgün
   sunucu açılır; bu davranış gerçek sunucuda gözlenmedi.
 - **Canlı dağıtım ve oyun içi kabul yapılmadı; bunlara kullanıcı onayı yok.**
-  1 Kasım 21:31'de Paper süreci **çalışıyordu**; durdurulmadı. `-Mode Inspect`
+  1 Kasım 21:44'te Paper süreci **çalışıyordu**; durdurulmadı. `-Mode Inspect`
   süreç/BAT eşleşmesini doğruladı. RCON bağlantısı yapılmadı.
 - Plan öncesi/sonrası korunan beş dosyanın (BAT, server.properties, JAR, NPC,
   knowledge) hash'i aynı kaldı; sunucuda yedek oluşmadı. Wiki yeniden taranmadı.
