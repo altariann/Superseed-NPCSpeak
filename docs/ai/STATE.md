@@ -84,8 +84,10 @@ son çalışma ve yarım iş için [HANDOFF](HANDOFF.md), kurallar için [AGENTS
 - Oyun içi test (1 Kasım): üç sorgu doğru, iki olgusal hata bulundu. İkisi de `CHAT`
   planına düşüyordu: başkan sorusunda kaynak `NO_RELEVANT_SOURCE`, karışık turda doğrulanmış
   kayıt 0. Uydurma ad wiki, NPC, knowledge ve memory dosyalarında yok.
-- **Sunucu 1 Kasım 23:48'de kullanıcı isteğiyle RCON stop ile kapatıldı; şu an kapalı.**
-  Yeni açılışta süreç/PID ve oyuncu durumunu yeniden doğrula.
+- Sunucu 1 Kasım 23:48'de kullanıcı isteğiyle RCON stop ile kapatıldı; **2 Kasım 19:46'da
+  kullanıcı tarafından yeniden açıldı** (Paper PID 528). 19:48 salt okunur denetimi: JAR `e5b8ddc6…`,
+  `Ready=True`, marker `058c2efb…` aynı, yalnız eski iki başka-plugin hatası, 0 oyuncu.
+  PID değişebilir; işlemden önce yeniden doğrula.
 - **Kurulu sürüm:** `jar-plan-20261101-232407`; o açılışta Paper PID 3476 idi. Betik çıkışı 0,
   `transaction.json` fazı `READY`, Citizens farkı 0. `HYBRID_READY_V1 058c2efb…60a9` plandaki
   marker ile birebir; Paper, Citizens, NPCSpeak açıldı. Bağımsız denetimde 288 sıkı dosya,

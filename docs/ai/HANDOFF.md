@@ -22,14 +22,22 @@
 
 ## Canlı durum
 
-- Sunucu 1 Kasım 23:48'de kullanıcı isteğiyle, 0 oyuncuyla RCON stop ile kapatıldı.
-  Paper süreci yok, 25565/25575 dinlemiyor, JAR hash'i aynı. Kullanıcı yarın devam edecek.
-- Bu ajan sunucuyu başlatmadı; yeniden açma kullanıcının kararıdır.
+- Sunucu 1 Kasım 23:48'de kullanıcı isteğiyle RCON stop ile kapatıldı. 2 Kasım 19:46'da
+  kullanıcı kendisi açtı. 19:48 salt okunur denetimi: Paper PID 528, BAT/Java kimliği aynı,
+  JAR `e5b8ddc6…`, açılış `Ready=True`, `HYBRID_READY_V1 058c2efb…` aynı, 0 oyuncu.
+- **Oturum burada devredildi.** Kullanıcıya verilen oyun içi test listesi aşağıda;
+  sonuçlar henüz gelmedi. Kullanıcı cevapları yapıştırınca beklenenle karşılaştır;
+  yorum turunda log ve RAM'i yalnız okuyarak izle.
 
 ## Sonraki adım
 
-1. Sunucu açıldıktan sonra kullanıcıyla oyun içi kabul: iki gerçek cümle, B03, Doğan'ın makamı/bağlılığı,
-   "Düşünüyorum" göstergesi, Citizens 313, skin ve konum. Bu ajan oyun içi sonuç üretmedi;
+1. Kullanıcıyla oyun içi kabul (Doğan Tırpan):
+   - "Haklısınız, başkanımızın adı nedir?" → Tech, gösterge yok, anında cevap.
+   - "iladymoon kime bağlı? Sence Tech iyi bir belediye başkanı mı?" → "doğrulanmış güncel
+     kaydım yok" + kısa "Bence…" yorumu ya da devam daveti; gösterge görünür, ilk çağrı 15–20 sn.
+   - B03 "iladymoon belediyede hangi görevlerde bulunuyor?" → Özel Kalem Müdürü ve Belediye Başkan Vekili.
+   - "Sen hangi görevdesin?" / "Sen kime bağlısın?" → Belediye Başkan Yardımcısı / Tech.
+   - Kısa günlük sohbet, Citizens 313'ün yeri, skini ve adı. Bu ajan oyun içi sonuç üretmedi;
    "kabul edildi" yazma. Yorum yolu canlıda ilk kez oyuncu altında çalışacak.
 2. Bellek baskısı oyuncu varken ölçülmedi; model yüklüyken boş RAM 811–1763 MB idi.
 3. Yeni canlı stop/JAR/config işlemi yeni açık onay ister. Geri dönüş yeni canlı müdahaledir;
