@@ -1,6 +1,12 @@
 package com.l299l.npcspeak.conversation;
 
 import com.l299l.npcspeak.knowledge.KnowledgeBase;
+import com.l299l.npcspeak.knowledge.GroundedPrompt;
+import com.l299l.npcspeak.knowledge.AnswerPlan;
+import com.l299l.npcspeak.knowledge.AnswerPlanner;
+import com.l299l.npcspeak.knowledge.HybridAnswerService;
+import com.l299l.npcspeak.knowledge.LoreEngine;
+import com.l299l.npcspeak.knowledge.SpeakerContext;
 
 import com.l299l.npcspeak.ai.AiBackend;
 import com.l299l.npcspeak.ai.AiMessage;
@@ -49,6 +55,7 @@ public class ConversationManager {
     private final int listenTimeoutSeconds;
 
     private final Map<UUID, NpcData> activeConversations = new ConcurrentHashMap<>();
+    private final Map<UUID, ConversationSession> activeVisits = new ConcurrentHashMap<>();
     // One citizen per NPC at any given time. NPC IDs are stable across reloads.
     private final Map<String, UUID> npcOccupants = new ConcurrentHashMap<>();
     private final Map<UUID, Map<String, ConversationSession>> sessions = new ConcurrentHashMap<>();
@@ -132,6 +139,7 @@ public class ConversationManager {
         }
 
         activeConversations.put(player.getUniqueId(), npc);
+        activeVisits.put(player.getUniqueId(), getOrCreateSession(player.getUniqueId(), npc.getId()));
 
         if (memorySummaryEnabled && cfg.isMemoryEnabledFor(true)) {
             String memory = memoryManager.load(npc.getId(), player.getUniqueId(), memoryMaxAgeDays);
@@ -176,38 +184,38 @@ public class ConversationManager {
     }
 
     public void handleChatInput(Player player, String text) {
+        ConversationSession session = activeVisits.get(player.getUniqueId());
         NpcData npc = activeConversations.get(player.getUniqueId());
-        if (npc == null) return;
+        if (npc == null || session == null) return;
+        // Capture the visit before queueing: a closed/reopened visit must not inherit this input.
+        Runnable input = () -> {
+            if (player.isOnline() && isActiveSession(player, npc, session)) handleChatInputOnMain(player, npc, session, text);
+        };
+        if (plugin.getServer().isPrimaryThread()) input.run();
+        else plugin.getServer().getScheduler().runTask(plugin, input);
+    }
 
-        // AsyncChatEvent is asynchronous. Deliver the private echo on the server thread.
-        // Other players never see the text because the original public event was cancelled.
+    private void handleChatInputOnMain(Player player, NpcData npc, ConversationSession session, String text) {
+        // Admission, PAPI expansion and lifecycle state now share the server thread.
         if (plugin.getConfig().getBoolean("conversation.echo-player-message", true)) {
-            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                if (player.isOnline()) NpcFormatter.sendPlayerEcho(player, npc.getDisplayName(), text);
-            });
+            NpcFormatter.sendPlayerEcho(player, npc.getDisplayName(), text);
         }
 
-        ConversationSession session = getOrCreateSession(player.getUniqueId(), npc.getId());
-
         if (session.isPending()) {
-            plugin.getServer().getScheduler().runTask(plugin, () ->
-                    NpcFormatter.sendPendingNotice(player, npc.getDisplayName()));
+            NpcFormatter.sendPendingNotice(player, npc.getDisplayName());
             return;
         }
 
         if (moderation.enabled() && isBlocked(text)) {
             logger.logBlocked(npc.getId(), npc.getDisplayName(), player.getName(), text);
-            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                NpcFormatter.sendResponse(player, npc.getDisplayName(), moderation.blockedResponse());
-                scheduleListenTimeout(player, npc);
-            });
+            NpcFormatter.sendResponse(player, npc.getDisplayName(), moderation.blockedResponse());
+            scheduleListenTimeout(player, npc);
             return;
         }
 
         if (cooldownManager.isOnCooldown(player.getUniqueId(), npc.getId(), cooldownMs)) {
             long left = cooldownManager.remainingSeconds(player.getUniqueId(), npc.getId(), cooldownMs);
-            plugin.getServer().getScheduler().runTask(plugin, () ->
-                    NpcFormatter.sendCooldownNotice(player, npc.getDisplayName(), left));
+            NpcFormatter.sendCooldownNotice(player, npc.getDisplayName(), left);
             return;
         }
 
@@ -215,21 +223,21 @@ public class ConversationManager {
         cooldownManager.record(player.getUniqueId(), npc.getId());
         session.setPending(true);
 
-        if (streamingEnabled) {
-            plugin.getServer().getScheduler().runTask(plugin, () ->
-                    player.sendActionBar(Component.text("✏ ...", NamedTextColor.GRAY)));
-        } else {
-            plugin.getServer().getScheduler().runTask(plugin, () ->
-                    NpcFormatter.sendTypingIndicator(player, npc.getDisplayName()));
-        }
-
         dispatchToBackend(player, npc, session, text);
     }
 
     public void injectMessage(Player player, String text) {
+        ConversationSession session = activeVisits.get(player.getUniqueId());
         NpcData npc = activeConversations.get(player.getUniqueId());
-        if (npc == null) return;
-        ConversationSession session = getOrCreateSession(player.getUniqueId(), npc.getId());
+        if (npc == null || session == null) return;
+        Runnable input = () -> {
+            if (player.isOnline() && isActiveSession(player, npc, session)) injectMessageOnMain(player, npc, session, text);
+        };
+        if (plugin.getServer().isPrimaryThread()) input.run();
+        else plugin.getServer().getScheduler().runTask(plugin, input);
+    }
+
+    private void injectMessageOnMain(Player player, NpcData npc, ConversationSession session, String text) {
         if (session.isPending()) {
             NpcFormatter.sendPendingNotice(player, npc.getDisplayName());
             return;
@@ -237,17 +245,13 @@ public class ConversationManager {
         cancelListenTimeout(player.getUniqueId());
         cooldownManager.record(player.getUniqueId(), npc.getId());
         session.setPending(true);
-        if (streamingEnabled) {
-            player.sendActionBar(Component.text("✏ ...", NamedTextColor.GRAY));
-        } else {
-            NpcFormatter.sendTypingIndicator(player, npc.getDisplayName());
-        }
         dispatchToBackend(player, npc, session, text);
     }
 
     public void clearPlayer(UUID playerId) {
         cancelListenTimeout(playerId);
         NpcData active = activeConversations.remove(playerId);
+        activeVisits.remove(playerId);
         if (active != null) npcOccupants.remove(active.getId(), playerId);
         sessions.remove(playerId);
         cachedMemory.remove(playerId);
@@ -259,6 +263,7 @@ public class ConversationManager {
         UUID playerId = player.getUniqueId();
         cancelListenTimeout(playerId);
         if (!activeConversations.remove(playerId, npc)) return;
+        activeVisits.remove(playerId);
         npcOccupants.remove(npc.getId(), playerId);
         doEndConversationWork(player, npc);
         // A fresh visit gets fresh chat history; saved memory summaries remain optional.
@@ -301,9 +306,14 @@ public class ConversationManager {
 
     private void scheduleListenTimeout(Player player, NpcData npc) {
         cancelListenTimeout(player.getUniqueId());
+        ConversationSession visit = activeVisits.get(player.getUniqueId());
+        BukkitTask[] scheduled = new BukkitTask[1];
         BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (visit == null || activeVisits.get(player.getUniqueId()) != visit
+                    || listenTimeouts.get(player.getUniqueId()) != scheduled[0]) return;
             listenTimeouts.remove(player.getUniqueId());
             if (activeConversations.remove(player.getUniqueId(), npc)) {
+                activeVisits.remove(player.getUniqueId(), visit);
                 npcOccupants.remove(npc.getId(), player.getUniqueId());
                 doEndConversationWork(player, npc);
                 clearSession(player.getUniqueId(), npc.getId());
@@ -312,6 +322,7 @@ public class ConversationManager {
                 }
             }
         }, listenTimeoutSeconds * 20L);
+        scheduled[0] = task;
         listenTimeouts.put(player.getUniqueId(), task);
     }
 
@@ -333,19 +344,32 @@ public class ConversationManager {
 
     private boolean isActiveSession(Player player, NpcData npc, ConversationSession session) {
         UUID playerId = player.getUniqueId();
-        if (activeConversations.get(playerId) != npc) return false;
+        if (activeConversations.get(playerId) != npc || activeVisits.get(playerId) != session) return false;
         Map<String, ConversationSession> playerSessions = sessions.get(playerId);
         return playerSessions != null && playerSessions.get(npc.getId()) == session;
     }
 
     private void dispatchToBackend(Player player, NpcData npc, ConversationSession session, String text) {
-        List<AiMessage> messages = buildConversationMessages(player, npc, session, text);
+        var lore = KnowledgeBase.snapshot();
+        var speaker = new SpeakerContext(npc.getId(), npc.getDisplayName(), npc.getConfig().getKnowledgeEntity());
+        boolean freeform = npc.getConfig().isFreeformConversation();
+        AnswerPlan plan = new AnswerPlanner().plan(text, speaker, lore, session.getReplySequence(), freeform);
 
-        CompletableFuture<String> future;
-        if (streamingEnabled) {
-            StringBuilder buffer = new StringBuilder();
-            AtomicLong lastUpdateMs = new AtomicLong(0);
-            future = backend.streamComplete(messages, token -> {
+        // A local answer arrives on the next tick; only a model call has anything to wait for.
+        if (!plan.local()) {
+            if (streamingEnabled) {
+                player.sendActionBar(Component.text("✏ ...", NamedTextColor.GRAY));
+            } else {
+                NpcFormatter.sendTypingIndicator(player, npc.getDisplayName());
+            }
+        }
+
+        StringBuilder buffer = new StringBuilder();
+        AtomicLong lastUpdateMs = new AtomicLong(0);
+        int replySequence = session.getReplySequence();
+        CompletableFuture<String> future = new HybridAnswerService().answer(plan,
+                () -> buildConversationMessages(player, npc, session, text, lore, speaker, plan, freeform),
+                backend, streamingEnabled, token -> {
                 buffer.append(token);
                 long now = System.currentTimeMillis();
                 if (now - lastUpdateMs.get() < 80) return;
@@ -353,71 +377,53 @@ public class ConversationManager {
                 String raw = buffer.toString();
                 String preview = raw.length() <= 55 ? raw : "…" + raw.substring(raw.length() - 54);
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    if (player.isOnline() && isActiveSession(player, npc, session)) {
+                    if (player.isOnline() && isActiveSession(player, npc, session)
+                            && session.isPending() && session.getReplySequence() == replySequence) {
                         player.sendActionBar(Component.text(preview, NamedTextColor.WHITE));
                     }
                 });
-            });
-        } else {
-            future = backend.complete(messages);
-        }
+            }).thenApply(outcome -> outcome.text());
 
-        future.thenAccept(response -> {
-            // An old AI result must not leak into a new citizen's conversation.
-            if (!isActiveSession(player, npc, session)) {
+        // Always queue, including completed local futures. Pending stays held until delivery commits.
+        future.whenComplete((response, error) -> plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (!player.isOnline() || !isActiveSession(player, npc, session)) {
                 session.setPending(false);
                 return;
             }
+            if (error != null) {
+                session.setPending(false);
+                plugin.getLogger().warning(backend.getName() + " error: " + error.getClass().getSimpleName());
+                NpcFormatter.sendError(player, npc.getDisplayName(), backend.getName());
+                scheduleListenTimeout(player, npc);
+                return;
+            }
             session.addExchange(text, response);
-            session.setPending(false);
             if (npc.getConfig().isLogConversations()) {
                 logger.log(npc.getId(), player.getName(), text, response);
             }
-            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                if (player.isOnline() && isActiveSession(player, npc, session)) {
-                    if (streamingEnabled) player.sendActionBar(Component.text(" "));
-                    NpcFormatter.sendResponse(player, npc.getDisplayName(), response);
-                    NpcTaskConfig task = npc.getConfig().getTask();
-                    if (task != null && "negotiate".equals(task.getType())
-                            && task.isEvaluatable() && task.isShowButtons() && responseContainsOffer(response)) {
-                        NpcFormatter.sendNegotiateButtons(player);
-                    }
-                    scheduleListenTimeout(player, npc);
-                }
-            });
-            maybeRunEvaluator(player, npc, session.getHistory());
-        }).exceptionally(err -> {
+            if (streamingEnabled && !plan.local()) player.sendActionBar(Component.text(" "));
+            NpcFormatter.sendResponse(player, npc.getDisplayName(), response);
+            NpcTaskConfig task = npc.getConfig().getTask();
+            if (task != null && "negotiate".equals(task.getType())
+                    && task.isEvaluatable() && task.isShowButtons() && responseContainsOffer(response)) {
+                NpcFormatter.sendNegotiateButtons(player);
+            }
+            scheduleListenTimeout(player, npc);
             session.setPending(false);
-            plugin.getLogger().warning(backend.getName() + " error: " + err.getMessage());
-            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                if (player.isOnline() && isActiveSession(player, npc, session)) {
-                    NpcFormatter.sendError(player, npc.getDisplayName(), backend.getName());
-                    scheduleListenTimeout(player, npc);
-                }
-            });
-            return null;
-        });
+            maybeRunEvaluator(player, npc, session.getHistory());
+        }));
     }
 
     private List<AiMessage> buildConversationMessages(Player player, NpcData npc,
-                                                      ConversationSession session, String userText) {
+                                                      ConversationSession session, String userText, LoreEngine lore,
+                                                      SpeakerContext speaker, AnswerPlan plan, boolean freeform) {
         String systemPrompt = PapiExpander.expand(player, npc.getConfig().buildSystemPrompt(npc.getDisplayName()));
-        // Retrieve only relevant local Superseed lore for this particular player question.
-        // Static personality and current municipality facts come from knowledge.yml.
-        String lore = KnowledgeBase.context(npc.getId(), userText);
-        if (!lore.isEmpty()) systemPrompt += lore;
+        if (plan.commentary()) return GroundedPrompt.commentary(systemPrompt, lore.persona(npc.getId()), plan.query().remainder());
         Map<String, String> playerMemory = cachedMemory.get(player.getUniqueId());
-        if (playerMemory != null) {
-            String memoryNote = playerMemory.get(npc.getId());
-            if (memoryNote != null) {
-                systemPrompt += " [Your memory from a previous conversation with this player: " + memoryNote + "]";
-            }
-        }
-        List<AiMessage> messages = new ArrayList<>();
-        messages.add(new AiMessage("system", systemPrompt));
-        messages.addAll(session.getHistory());
-        messages.add(new AiMessage("user", userText));
-        return messages;
+        if (freeform) return GroundedPrompt.messages(systemPrompt, lore.persona(npc.getId()),
+                playerMemory == null ? null : playerMemory.get(npc.getId()), session.getHistory(), userText, lore, speaker, plan);
+        return GroundedPrompt.messages(systemPrompt, lore.persona(npc.getId()),
+                playerMemory == null ? null : playerMemory.get(npc.getId()), session.getHistory(), userText, lore);
     }
 
     private void maybeRunEvaluator(Player player, NpcData npc, List<AiMessage> history) {

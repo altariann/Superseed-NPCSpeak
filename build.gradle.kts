@@ -17,6 +17,11 @@ dependencies {
     compileOnly("net.citizensnpcs:citizensapi:2.0.33-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.6")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7.1")
+    testImplementation(platform("org.junit:junit-bom:5.11.4"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("com.google.code.gson:gson:2.10.1")
+    testImplementation("io.papermc.paper:paper-api:1.20-R0.1-SNAPSHOT")
 }
 
 java {
@@ -26,6 +31,77 @@ java {
 tasks.compileJava {
     options.release.set(17)
     options.compilerArgs.add("-Xlint:deprecation")
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
+
+// Opt-in private evaluation. Normal build/test never reads a real archive or calls a model.
+tasks.register<JavaExec>("evaluateLore") {
+    group = "verification"
+    description = "Evaluate production lore code against explicitly supplied private data/cases (no AI)."
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.l299l.npcspeak.knowledge.LoreEvaluation")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    args("--mode", providers.gradleProperty("loreMode").getOrElse("run"),
+         "--data", providers.gradleProperty("loreData").getOrElse(""),
+         "--cases", providers.gradleProperty("loreCases").getOrElse(""),
+         "--evidence-data", providers.gradleProperty("loreEvidenceData").getOrElse(""),
+         "--output", providers.gradleProperty("loreOutput").getOrElse(""))
+}
+
+tasks.register<JavaExec>("prepareLorePilot") {
+    group = "verification"
+    description = "Export private pilot requests through production prompt/serialization code; no HTTP."
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.l299l.npcspeak.knowledge.LorePilotPreparation")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    args("--data", providers.gradleProperty("loreData").getOrElse(""),
+         "--cases", providers.gradleProperty("pilotCases").getOrElse(""),
+         "--style", providers.gradleProperty("pilotStyle").getOrElse(""),
+         "--npc", providers.gradleProperty("pilotNpc").getOrElse(""),
+         "--model", providers.gradleProperty("pilotModel").getOrElse(""),
+         "--output", providers.gradleProperty("loreOutput").getOrElse(""))
+}
+
+// Explicit local export/replay only. This task never makes model calls.
+tasks.register<JavaExec>("hybridPilot") {
+    group = "verification"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.l299l.npcspeak.knowledge.HybridPilot")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    args("--mode", providers.gradleProperty("hybridMode").getOrElse("prepare"),
+         "--data", providers.gradleProperty("loreData").getOrElse(""),
+         "--style", providers.gradleProperty("pilotStyle").getOrElse(""),
+         "--cases", providers.gradleProperty("pilotCases").getOrElse(""),
+         "--output", providers.gradleProperty("loreOutput").getOrElse(""),
+         "--npc", providers.gradleProperty("pilotNpc").getOrElse(""),
+         "--model", providers.gradleProperty("pilotModel").getOrElse(""),
+         "--case", providers.gradleProperty("hybridCase").getOrElse(""))
+}
+
+tasks.register<JavaExec>("prepareHybridDeployment") {
+    group = "verification"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.l299l.npcspeak.knowledge.DeploymentPlanPreparation")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    args("--recipe", providers.gradleProperty("deploymentRecipe").getOrElse(""),
+         "--output", providers.gradleProperty("deploymentOutput").getOrElse(""))
+}
+
+tasks.register<JavaExec>("prepareJarUpdate") {
+    group = "verification"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.l299l.npcspeak.knowledge.JarPlanPreparation")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    args("--recipe", providers.gradleProperty("deploymentRecipe").getOrElse(""),
+         "--output", providers.gradleProperty("deploymentOutput").getOrElse(""))
 }
 
 tasks {

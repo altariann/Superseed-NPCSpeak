@@ -83,6 +83,11 @@ public class OllamaBackend implements AiBackend {
     }
 
     private String buildBody(List<AiMessage> messages, boolean stream) {
+        return encodeRequest(model, messages, stream);
+    }
+
+    /** Shared wire format for the backend and opt-in local pilot; never adds inference options. */
+    public static String encodeRequest(String model, List<AiMessage> messages, boolean stream) {
         JsonObject body = new JsonObject();
         body.addProperty("model", model);
         body.addProperty("stream", stream);

@@ -1,4 +1,4 @@
-# Superseed NPCSpeak lore / knowledge, v4
+# Superseed NPCSpeak lore / knowledge, v5
 # Editable without rebuilding: /npcspeak reload
 # This is NOT the wiki itself. Put extracted wiki articles in knowledge/wiki/*.txt
 # Unknown current facts are intentionally omitted rather than guessed.
@@ -6,6 +6,10 @@ enabled: true
 retrieval:
   max-snippets: 3
   max-context-chars: 3200
+  # Lexical fallback requires two informative terms, rare content and this coverage.
+  # Complete title/explicit alias matches receive a 100-point entity bonus.
+  min-score: 6.0
+  min-query-coverage: 0.65
 
 characters:
   dogan_tirpan: |-
@@ -19,21 +23,47 @@ characters:
     Geçmiş ve güncel siyasi görevleri birbirine karıştırma. Arşiv kaydını
     güncel atama belgesi sayma. Yeni bir işlem yapılmış gibi konuşma.
 
-municipality: |-
-  Doğan Tırpan'ın görevi: Belediye başkan yardımcısı; oyuncularla makamında görüşür.
-  Vatandaş başvurularını ve şikâyetlerini dinleyebilir; fakat mevcut sistemde
-  dilekçe oluşturma, ruhsat verme, para aktarma, ceza kesme veya sunucu komutu
-  çalıştırma yeteneği tanımlı değildir. Bu işlemleri gerçekleştirdiğini söyleme.
-  Belediye Başkanı: Tech.
-  Belediye Başkan Yardımcısı: Doğan Tırpan.
-  Özel Kalem Müdürü ve Belediye Başkan Vekili: iladymoon.
-
-  Tech, Doğan Tırpan'ın bağlı olduğu belediye başkanıdır.
-  Seçim usulü, oy sayısı ve doğrulanmamış belediye yetkileri
-  hakkında bilgi uydurma.
-
-# Belediyenin gerçek ve güncel yetkilerini doğruladıkça buraya ekleyebiliriz.
-# Tarihsel makam sahipleri, belediyenin bugünkü yönetimiyle karıştırılmamalı.
+# Legacy-only files may retain municipality: |-. When municipal-records is present,
+# the legacy broad text is NOT used. Migrate all still-needed facts into records.
+municipal-records:
+  - id: mayor-tech
+    type: office
+    subjects: ['Tech']
+    offices: ['Belediye Başkanı']
+    current: true
+    text: 'Tech, Superseed Belediye Başkanıdır.'
+  - id: deputy-dogan
+    type: office
+    subjects: ['Doğan Tırpan']
+    offices: ['Belediye Başkan Yardımcısı']
+    current: true
+    text: 'Doğan Tırpan, Superseed Belediye Başkan Yardımcısıdır.'
+  - id: secretary-iladymoon
+    type: office
+    subjects: ['iladymoon']
+    offices: ['Özel Kalem Müdürü']
+    current: true
+    text: 'iladymoon, Superseed Özel Kalem Müdürüdür.'
+  - id: acting-mayor-iladymoon
+    type: office
+    subjects: ['iladymoon']
+    offices: ['Belediye Başkan Vekili']
+    current: true
+    text: 'iladymoon, Superseed Belediye Başkan Vekilidir.'
+  - id: dogan-reports-to-tech
+    type: relationship
+    subjects: ['Doğan Tırpan', 'Tech']
+    keywords: ['bağlı', 'ilişkisi', 'ilişki', 'amiri']
+    current: true
+    text: "Doğan Tırpan, Belediye Başkanı Tech'e bağlıdır."
+  - id: dogan-capabilities
+    type: fact
+    subjects: ['Doğan Tırpan']
+    current: true
+    text: >-
+      Doğan Tırpan oyuncularla makamında görüşür; vatandaş başvurularını ve
+      şikâyetlerini dinleyebilir. Mevcut sistemde dilekçe oluşturma, ruhsat verme,
+      para aktarma, ceza kesme veya sunucu komutu çalıştırma yeteneği tanımlı değildir.
 
 # Verified name relations. Use aliases only for the SAME real location/person/entity.
 # A short name match by itself must NOT make unrelated places equivalent.
@@ -42,3 +72,11 @@ aliases:
     names:
       - 'Iron Plaza'
     note: "Iron Plaza, Plaza AVM'nin eski adıdır; aynı yapıdır."
+
+# Explicit relationships are facts, NOT aliases: these entities are distinct.
+verified-facts:
+  - id: pursuing-evidence-production
+    subjects: ['Pursuing Evidence']
+    keywords: ['Visual Node', 'SPAT']
+    current: true
+    text: "Pursuing Evidence, SPAT tarafından oluşturulan bir Visual Node yapımıdır."

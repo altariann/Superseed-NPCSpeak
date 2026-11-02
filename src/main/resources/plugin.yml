@@ -12,11 +12,14 @@ soft-depend: [ Citizens, PlaceholderAPI, Vault ]
 commands:
   npcspeak:
     description: Manage NPCSpeak NPCs
-    usage: /npcspeak <spawn|remove|list|info|edit|task|example|memory|log|reload> [args]
+    usage: /npcspeak <spawn|remove|list|info|edit|task|example|memory|log|reload|lore> [args]
     aliases: [ npc ]
     permission: npcspeak.admin
 
 permissions:
+  npcspeak.lore.debug:
+    description: Inspect lore retrieval for administrator-supplied questions
+    default: op
   npcspeak.admin:
     description: Manage NPCSpeak NPCs (spawn, remove, reload)
     default: op

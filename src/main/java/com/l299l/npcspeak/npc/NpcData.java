@@ -58,6 +58,10 @@ public class NpcData {
         }
 
         NpcConfig config = new NpcConfig();
+        if (yaml.contains("knowledge-entity") && !yaml.isString("knowledge-entity")) {
+            throw new IllegalArgumentException("knowledge-entity must be an explicit entity name");
+        }
+        config.setKnowledgeEntity(yaml.getString("knowledge-entity"));
         if (yaml.isConfigurationSection("personality")) {
             config.setGreeting(yaml.getString("personality.greeting"));
             config.setSystemPrompt(yaml.getString("personality.system-prompt"));
@@ -105,6 +109,7 @@ public class NpcData {
             yaml.set("location.pitch", (double) spawnLocation.getPitch());
         }
         if (config != null) {
+            yaml.set("knowledge-entity", config.getKnowledgeEntity());
             yaml.set("personality.greeting", config.getGreeting() != null ? config.getGreeting() : "");
             yaml.set("personality.system-prompt", config.getSystemPrompt() != null ? config.getSystemPrompt() : "");
             yaml.set("personality.topic", config.getTopic() != null ? config.getTopic() : "");
